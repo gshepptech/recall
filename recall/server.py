@@ -1,0 +1,738 @@
+import logging
+import os
+from contextlib import asynccontextmanager
+from json import JSONDecodeError
+from pathlib import Path
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse
+from dotenv import load_dotenv
+
+from recall.db import (
+    bump_access_count,
+    debug_memory_count,
+    fetch_links_between,
+    fetch_memory_links,
+    fetch_memory,
+    find_memories,
+    init_db,
+    is_postgres,
+    list_all_memories,
+    list_projects,
+    list_by_memory_type,
+    list_runs,
+    list_token_labels,
+    log_token_hit,
+    open_aio_db,
+    run_stats,
+    set_aio_db,
+    token_usage_stats,
+)
+from recall.auth import verify_auth, assert_scope, ROLE_PERMISSIONS
+from recall.commands.search import cmd_search
+from recall.commands.save_memory import cmd_save_memory
+from recall.commands.get_prompt import cmd_get_prompt
+from recall.commands.get_memory import cmd_get_memory
+from recall.commands.delete_memory import cmd_delete_memory
+from recall.commands.hygiene import cmd_hygiene
+from recall.commands.log_run import cmd_log_run
+from recall.commands.log_error import cmd_log_error
+from recall.commands.get_schema import cmd_get_schema
+from recall.commands.save_requirement import cmd_save_requirement
+from recall.commands.list_requirements import cmd_list_requirements
+from recall.commands.promote_requirement import cmd_promote_requirement
+from recall.commands.create_token import cmd_create_token
+from recall.commands.save_prompt import cmd_save_prompt
+from recall.commands.list_prompts import cmd_list_prompts
+from recall.commands.recall_help import cmd_recall_help
+from recall.commands.version import cmd_version
+from recall.mcp_server import build_mcp_app, handle_streamable_http
+from recall.version import __version__
+
+logger = logging.getLogger(__name__)
+
+load_dotenv()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    backend = os.getenv('DB_BACKEND', 'sqlite').lower()
+    if backend == 'sqlite':
+        db_path = os.getenv('RECALL_DB_PATH', './recall.db')
+        db_conn = await open_aio_db(db_path)
+        set_aio_db(db_conn)
+        app.state.sqlite_db = db_conn
+    elif backend == 'postgres':
+        from recall.db_postgres import init_pg
+        await init_pg()
+    host = os.getenv('RECALL_HOST', '0.0.0.0')
+    port = os.getenv('RECALL_PORT', '8000')
+    logger.info(f'Recall running at http://{host}:{port}/webhook/recall (backend: {backend})')
+    yield
+    if backend == 'sqlite' and hasattr(app.state, 'sqlite_db'):
+        await app.state.sqlite_db.close()
+
+
+app = FastAPI(title='Recall', version=__version__, lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=['*'],
+    allow_credentials=False,
+    allow_methods=['*'],
+    allow_headers=['*'],
+)
+# ── Token hit tracking middleware ─────────────────────────────────────────────
+@app.middleware('http')
+async def record_token_hit(request: Request, call_next):
+    import asyncio
+    response = await call_next(request)
+    if response.status_code == 200:
+        label = getattr(request.state, 'token_label', None)
+        if label:
+            path = request.url.path
+            if path == '/webhook/recall':
+                command = getattr(request.state, 'webhook_command', 'webhook')
+            else:
+                command = path.replace('/api/ui/', 'ui:').strip('/')
+            asyncio.create_task(log_token_hit(label, command))
+    return response
+
+
+# ── MCP — Streamable HTTP (primary transport, MCP spec 2025-03-26) ────────────
+# Registered as a direct FastAPI route so Starlette's Mount never issues a
+# 307 redirect on POST /mcp → /mcp/. MCP clients (claude.ai, Cursor) do not
+# follow 307 redirects on POST, causing silent "couldn't reach MCP server" errors.
+@app.post('/mcp')
+async def mcp_streamable_http(request: Request):
+    return await handle_streamable_http(request)
+
+
+# ── MCP — SSE legacy transport (deprecated, kept for backwards compat) ────────
+# Mount handles /mcp/sse and /mcp/messages only.
+app.mount('/mcp', build_mcp_app())
+
+
+# ── Minimum role required per command ─────────────────────────────────────────
+
+COMMAND_MIN_ROLE = {
+    'search':               'viewer',
+    'get_memory':           'viewer',
+    'get_prompt':           'viewer',
+    'list_prompts':         'viewer',
+    'list_requirements':    'viewer',
+    'recall_help':           'viewer',
+    'version':              'viewer',
+    'hygiene_report':       'viewer',
+    'save_memory':          'developer',
+    'save_prompt':          'developer',
+    'save_requirement':     'developer',
+    'promote_requirement':  'developer',
+    'log_run':              'developer',
+    'log_error':            'developer',
+    'get_schema':           'admin',
+    'delete_memory':        'admin',
+    'debug_protocol':       'admin',
+    'create_token':         'owner',
+}
+
+
+# ── debug_protocol handler (inline — no separate file needed) ─────────────────
+
+async def _cmd_debug_protocol(_body: dict) -> dict:
+    count = await debug_memory_count()
+    return {
+        'backend':        'postgres' if is_postgres() else 'sqlite',
+        'db_path':        os.getenv('RECALL_DB_PATH', './recall.db') if not is_postgres() else None,
+        'memory_count':   count,
+        'openai_key_set': bool(os.getenv('OPENAI_API_KEY')),
+        'version':        __version__,
+    }
+
+
+# ── Single dispatch table: canonical names + all aliases ──────────────────────
+
+DISPATCH: dict = {
+    # canonical
+    'search':               cmd_search,
+    'save_memory':          cmd_save_memory,
+    'get_prompt':           cmd_get_prompt,
+    'get_memory':           cmd_get_memory,
+    'delete_memory':        cmd_delete_memory,
+    'log_run':              cmd_log_run,
+    'log_error':            cmd_log_error,
+    'get_schema':           cmd_get_schema,
+    'save_requirement':     cmd_save_requirement,
+    'list_requirements':    cmd_list_requirements,
+    'promote_requirement':  cmd_promote_requirement,
+    'create_token':         cmd_create_token,
+    'save_prompt':          cmd_save_prompt,
+    'list_prompts':         cmd_list_prompts,
+    'recall_help':           cmd_recall_help,
+    'version':              cmd_version,
+    'debug_protocol':       _cmd_debug_protocol,
+    'hygiene_report':       cmd_hygiene,
+    # search aliases
+    'find':                 cmd_search,
+    'query':                cmd_search,
+    'recall':               cmd_search,
+    'lookup':               cmd_search,
+    'search_memory':        cmd_search,
+    'find_memory':          cmd_search,
+    'retrieve':             cmd_search,
+    'remember':             cmd_search,
+    # save_memory aliases
+    'save':                 cmd_save_memory,
+    'store':                cmd_save_memory,
+    'write_memory':         cmd_save_memory,
+    'add_memory':           cmd_save_memory,
+    'write':                cmd_save_memory,
+    # get_prompt aliases
+    'run_prompt':           cmd_get_prompt,
+    'fetch_prompt':         cmd_get_prompt,
+    'load_prompt':          cmd_get_prompt,
+    'execute_prompt':       cmd_get_prompt,
+    # get_memory aliases
+    'fetch_memory':         cmd_get_memory,
+    'read_memory':          cmd_get_memory,
+    'load_memory':          cmd_get_memory,
+    # delete_memory aliases
+    'remove_memory':        cmd_delete_memory,
+    'forget_memory':        cmd_delete_memory,
+    'forget':               cmd_delete_memory,
+    # log_run aliases
+    'log_session':          cmd_log_run,
+    'end_session':          cmd_log_run,
+    'finish_run':           cmd_log_run,
+    'log_completion':       cmd_log_run,
+    # log_error aliases
+    'log_bug':              cmd_log_error,
+    'report_error':         cmd_log_error,
+    'save_error':           cmd_log_error,
+    'log_failure':          cmd_log_error,
+    # get_schema aliases
+    'schema':               cmd_get_schema,
+    'get_db':               cmd_get_schema,
+    # debug_protocol aliases
+    'debug':                _cmd_debug_protocol,
+    'dp':                   _cmd_debug_protocol,
+    # list aliases
+    'list_reqs':            cmd_list_requirements,
+    'get_requirements':     cmd_list_requirements,
+    'get_prompts':          cmd_list_prompts,
+    # promote aliases
+    'promote':              cmd_promote_requirement,
+    # create_token aliases
+    'new_token':            cmd_create_token,
+    'token':                cmd_create_token,
+    # save_prompt aliases
+    'write_prompt':         cmd_save_prompt,
+    'store_prompt':         cmd_save_prompt,
+    # recall_help aliases
+    'help':                 cmd_recall_help,
+    # version aliases
+    'ver':                  cmd_version,
+    'server_version':       cmd_version,
+}
+
+# Canonical command names (derived from DISPATCH, no aliases) for error messages
+KNOWN_COMMANDS = sorted(set(COMMAND_MIN_ROLE.keys()))
+
+
+# ── GitHub version cache ───────────────────────────────────────────────────────
+
+_github_version_cache: dict = {'version': None, 'checked': ''}
+
+
+async def _get_latest_github_version() -> str | None:
+    import datetime
+    today = datetime.date.today().isoformat()
+    if _github_version_cache['checked'] == today and _github_version_cache['version']:
+        return _github_version_cache['version']
+    try:
+        import urllib.request
+        import json as _json
+        req = urllib.request.Request(
+            'https://api.github.com/repos/gshepptech/recall/tags',
+            headers={'User-Agent': f'recall-server/{__version__}'},
+        )
+        resp = urllib.request.urlopen(req, timeout=5)
+        tags = _json.loads(resp.read().decode())
+        if tags and isinstance(tags, list) and 'name' in tags[0]:
+            _github_version_cache['version'] = tags[0]['name'].lstrip('v')
+        _github_version_cache['checked'] = today
+    except Exception:
+        pass
+    return _github_version_cache['version']
+
+
+# ── Health ─────────────────────────────────────────────────────────────────────
+
+@app.get('/health')
+async def health():
+    latest = await _get_latest_github_version()
+    result = {
+        'status':  'ok',
+        'version': __version__,
+        'backend': os.getenv('DB_BACKEND', 'sqlite'),
+    }
+    if latest:
+        result['latest_version'] = latest
+    return result
+
+
+# ── Web UI ─────────────────────────────────────────────────────────────────────
+
+_UI_HTML = (Path(__file__).with_name('ui.html')).read_text(encoding='utf-8')
+
+
+@app.get('/', response_class=HTMLResponse)
+async def web_ui():
+    return HTMLResponse(_UI_HTML)
+
+
+def _normalise_title(value: str) -> str:
+    return ' '.join((value or '').lower().split())
+
+
+def _parse_ts(raw) -> float:
+    """Parse created_at (datetime, ISO str, or SQLite 'YYYY-MM-DD HH:MM:SS') to unix seconds. Returns 0 on failure."""
+    if raw is None:
+        return 0.0
+    if hasattr(raw, 'timestamp'):
+        try:
+            return raw.timestamp()
+        except Exception:
+            return 0.0
+    s = str(raw).replace(' ', 'T')
+    if not s.endswith('Z') and '+' not in s[10:] and '-' not in s[10:]:
+        s += 'Z'
+    try:
+        from datetime import datetime
+        return datetime.fromisoformat(s.replace('Z', '+00:00')).timestamp()
+    except Exception:
+        return 0.0
+
+
+def _build_graph_payload(memories: list[dict], wiki_links: list[dict] | None = None) -> dict:
+    """
+    Build a graph payload of nodes + edges scored across multiple signals.
+
+    Edge signals (summed, threshold = 1.6):
+      title reference (one title appears in the other's body) → +3.2
+      same module                                             → +2.4
+      shared normalised-tag intersection                      → 0.7 per tag (cap 1.8)
+      temporal proximity (within 6h)                          → +0.9
+      same memory_type                                        → +0.25
+      same project (only if graph mixes projects)             → +1.0
+
+    Same-project bonus is suppressed when all memories in the payload
+    share the same project — otherwise every pair would get the bonus
+    and scoring collapses into a giant blob.
+    """
+    max_edges = 320
+    node_degree_cap = 8
+    score_threshold = 1.6
+
+    projects_in_payload = {m.get('project') for m in memories if m.get('project')}
+    uniform_project = len(projects_in_payload) <= 1
+
+    title_map = {m['id']: _normalise_title(m.get('title', '')) for m in memories}
+    ts_map = {m['id']: _parse_ts(m.get('created_at')) for m in memories}
+
+    candidate_edges: list[tuple[float, str, str, str]] = []
+    ids = [m['id'] for m in memories]
+
+    for index, left in enumerate(memories):
+        left_id = left['id']
+        left_title = title_map[left_id]
+        left_content = (left.get('content_md') or '').lower()
+        left_tags = {str(tag).strip().lower() for tag in (left.get('tags') or []) if str(tag).strip() and str(tag).strip() != 'null'}
+        left_ts = ts_map[left_id]
+        for right in memories[index + 1:]:
+            right_id = right['id']
+            right_title = title_map[right_id]
+            right_content = (right.get('content_md') or '').lower()
+            right_tags = {str(tag).strip().lower() for tag in (right.get('tags') or []) if str(tag).strip() and str(tag).strip() != 'null'}
+            right_ts = ts_map[right_id]
+
+            score = 0.0
+            relation = ''
+
+            # Title-in-body references (strongest signal — explicit mention)
+            if left_title and len(left_title) >= 10 and left_title in right_content:
+                score += 3.2
+                relation = 'reference'
+            if right_title and len(right_title) >= 10 and right_title in left_content:
+                score += 3.2
+                relation = 'reference'
+
+            # Module match — strong signal that two memories concern the same code area
+            if left.get('module') and left.get('module') == right.get('module'):
+                score += 2.4
+                relation = relation or 'module'
+
+            # Shared tag intersection (after filtering junk values)
+            shared_tags = left_tags & right_tags
+            if shared_tags:
+                score += min(1.8, 0.7 * len(shared_tags))
+                relation = relation or 'tag'
+
+            # Temporal proximity — memories created within 6h often concern the
+            # same task. Useful for auto-logged diary/conversation entries that
+            # rarely carry tags but cluster in time.
+            if left_ts and right_ts:
+                dt = abs(left_ts - right_ts)
+                if dt < 6 * 3600:
+                    score += 0.9 * (1 - dt / (6 * 3600))
+                    relation = relation or 'temporal'
+
+            # Project match — only meaningful when the payload mixes projects
+            if not uniform_project and left.get('project') and left.get('project') == right.get('project'):
+                score += 1.0
+                relation = relation or 'project'
+
+            # Type affinity — weak signal, just tips borderline edges in
+            if left.get('memory_type') == right.get('memory_type'):
+                score += 0.25
+
+            if score >= score_threshold:
+                candidate_edges.append((score, left_id, right_id, relation or 'related'))
+
+    candidate_edges.sort(key=lambda item: item[0], reverse=True)
+    degree_count = {node_id: 0 for node_id in ids}
+    edges = []
+
+    # Wikilinks first — explicit [[title]] anchors bypass the score threshold
+    # and degree cap so a bold purple edge always reaches its target. We emit
+    # one undirected entry per {from,to} pair so the graph doesn't draw two
+    # lines between the same nodes when both memories reference each other.
+    id_set = set(ids)
+    wiki_pairs: set[tuple[str, str]] = set()
+    for link in (wiki_links or []):
+        from_id = link.get('from_id')
+        to_id = link.get('to_id')
+        if not from_id or not to_id or from_id not in id_set or to_id not in id_set:
+            continue
+        pair = tuple(sorted((from_id, to_id)))
+        if pair in wiki_pairs:
+            continue
+        wiki_pairs.add(pair)
+        edges.append({
+            'source': from_id,
+            'target': to_id,
+            'type':   'wiki',
+            'weight': 4.0,
+        })
+        degree_count[from_id] = degree_count.get(from_id, 0) + 1
+        degree_count[to_id]   = degree_count.get(to_id, 0) + 1
+
+    for score, source, target, relation in candidate_edges:
+        if len(edges) >= max_edges:
+            break
+        if degree_count[source] >= node_degree_cap or degree_count[target] >= node_degree_cap:
+            continue
+        # Don't double-draw an edge a wikilink already claimed for this pair
+        if tuple(sorted((source, target))) in wiki_pairs:
+            continue
+        degree_count[source] += 1
+        degree_count[target] += 1
+        edges.append({
+            'source': source,
+            'target': target,
+            'type': relation,
+            'weight': round(score, 2),
+        })
+
+    nodes = []
+    for memory in memories:
+        tags = memory.get('tags') or []
+        # Strip the "null" string junk so the UI doesn't render it as a tag pill
+        if isinstance(tags, list):
+            tags = [t for t in tags if t and str(t).strip() and str(t).strip() != 'null']
+        else:
+            tags = []
+        nodes.append({
+            'id': memory['id'],
+            'title': memory.get('title') or 'Untitled',
+            'snippet': memory.get('snippet') or '',
+            'memory_type': memory.get('memory_type') or 'conversation',
+            'project': memory.get('project') or 'global',
+            'module': memory.get('module') or '',
+            'created_at': memory.get('created_at'),
+            'access_count': memory.get('access_count') or 0,
+            'created_by': memory.get('created_by') or '',
+            'tags': tags,
+        })
+    return {'nodes': nodes, 'edges': edges}
+
+
+@app.get('/api/ui/bootstrap')
+async def ui_bootstrap(request: Request):
+    auth_info = await verify_auth(request)
+    scope = auth_info.get('project_scope')
+    # If token is scoped, force the project — do not 403 here (bootstrap is auth-only)
+    project = scope or (request.query_params.get('project') or 'global')
+    prompts = await list_by_memory_type('prompt', project, 8)
+    requirements = await list_by_memory_type('requirement', project, 8)
+    return {
+        'role': auth_info.get('role', 'viewer'),
+        'project': project,
+        'project_scope': scope,
+        'projects': await list_projects(),
+        'memory_total': await debug_memory_count(),
+        'recent_prompts': prompts,
+        'recent_requirements': requirements,
+    }
+
+
+@app.get('/api/ui/users')
+async def ui_users():
+    """Unauthenticated — returns token labels for the 'Who are you?' picker."""
+    labels = await list_token_labels()
+    return JSONResponse([{'label': l} for l in labels])
+
+
+@app.get('/api/ui/token-usage')
+async def ui_token_usage(request: Request):
+    await verify_auth(request)
+    stats = await token_usage_stats()
+    for row in stats:
+        if row.get('last_seen') is not None:
+            row['last_seen'] = str(row['last_seen'])
+    return JSONResponse(stats)
+
+
+@app.get('/api/ui/graph')
+async def ui_graph(request: Request):
+    auth_info = await verify_auth(request)
+    project = request.query_params.get('project') or 'global'
+    assert_scope(auth_info, project)
+    limit = min(int(request.query_params.get('limit', '300')), 500)
+    memories = await list_all_memories(project, limit)
+    wiki_links = await fetch_links_between([m['id'] for m in memories])
+    return _build_graph_payload(memories, wiki_links=wiki_links)
+
+
+@app.get('/api/ui/backlinks/{memory_id}')
+async def ui_backlinks(memory_id: str, request: Request):
+    """Return wikilink backlinks for a single memory — used by the graph
+    node-detail panel when a node is clicked."""
+    await verify_auth(request)
+    return await fetch_memory_links(memory_id)
+
+
+# ── Dedicated UI read endpoints (bypass webhook dispatch) ──────────────────────
+
+import json as _json
+
+def _prep_memories(rows: list) -> list:
+    """Attach computed score and parse tags JSON for a list of memory dicts."""
+    from recall.scoring import compute_score
+    out = []
+    for r in rows:
+        tags = r.get('tags', [])
+        if isinstance(tags, str):
+            try:
+                tags = _json.loads(tags or '[]')
+            except Exception:
+                tags = []
+        r = {**r, 'tags': tags, 'score': round(compute_score(r), 4)}
+        out.append(r)
+    return out
+
+
+@app.get('/api/ui/memories')
+async def ui_memories(request: Request):
+    """
+    List or search memories for the UI.
+    - q=*  (or omitted) → list_all_memories (includes full content_md — no second fetch needed)
+    - q=<text>          → hybrid vector+FTS search via find_memories (snippet only)
+    Query params: project, q, type, status, limit
+    """
+    auth_info = await verify_auth(request)
+    project = request.query_params.get('project') or 'global'
+    assert_scope(auth_info, project)
+    q       = (request.query_params.get('q') or '').strip()
+    mtype   = request.query_params.get('type') or None
+    status  = request.query_params.get('status') or None
+    limit   = min(int(request.query_params.get('limit', '50')), 1000)
+
+    if q and q != '*':
+        from recall.embed import embed
+        emb = await embed(q) or [0.0] * 1536
+        rows, _, _ = await find_memories(q, emb, project, limit, memory_type=mtype)
+    else:
+        rows = await list_all_memories(project, limit)
+        if mtype:
+            rows = [r for r in rows if r.get('memory_type') == mtype]
+
+    if status:
+        rows = [r for r in rows if r.get('status') == status]
+
+    total = await debug_memory_count()
+    return {'memories': _prep_memories(rows), 'count': len(rows), 'total': total}
+
+
+@app.get('/api/ui/memories/{memory_id}')
+async def ui_memory_get(memory_id: str, request: Request):
+    """
+    Fetch a single memory by UUID with full content_md. Read-only — does NOT
+    bump access count (only webhook get_memory counts).
+
+    Note: UUIDs are globally unique so we deliberately do NOT scope by project
+    here. Scoping caused false 404s when the UI displayed a memory from one
+    project (e.g. via graph or search) while the project filter was set to
+    another. Auth is still enforced at the token level.
+    """
+    await verify_auth(request)
+    row = await fetch_memory(memory_id=memory_id)
+    if not row:
+        return JSONResponse(status_code=404, content={'error': 'Memory not found'})
+    row = _prep_memories([row])[0]
+    return row
+
+
+@app.get('/api/ui/prompts')
+async def ui_prompts(request: Request):
+    """List prompts for the UI."""
+    auth_info = await verify_auth(request)
+    project = request.query_params.get('project') or 'global'
+    assert_scope(auth_info, project)
+    limit   = min(int(request.query_params.get('limit', '100')), 500)
+    rows = await list_by_memory_type('prompt', project, limit)
+    return {'prompts': _prep_memories(rows), 'count': len(rows)}
+
+
+@app.get('/api/ui/requirements')
+async def ui_requirements(request: Request):
+    """List requirements for the UI, optionally filtered by status."""
+    auth_info = await verify_auth(request)
+    project = request.query_params.get('project') or 'global'
+    assert_scope(auth_info, project)
+    status  = request.query_params.get('status') or None
+    limit   = min(int(request.query_params.get('limit', '100')), 500)
+    rows = await list_by_memory_type('requirement', project, limit, status=status)
+    return {'requirements': _prep_memories(rows), 'count': len(rows)}
+
+
+@app.get('/api/ui/run-history')
+async def ui_run_history(request: Request):
+    """
+    DEPRECATED (kept for v1.0.4 clients). Use /api/ui/runs instead.
+    Returns conversation-type memories filtered by prompt name in title/tags.
+    """
+    auth_info   = await verify_auth(request)
+    project     = request.query_params.get('project') or 'global'
+    assert_scope(auth_info, project)
+    prompt_name = (request.query_params.get('prompt') or '').lower().strip()
+    limit       = min(int(request.query_params.get('limit', '30')), 100)
+
+    rows = await list_by_memory_type('conversation', project, limit)
+    if prompt_name:
+        def _matches(r: dict) -> bool:
+            title = (r.get('title') or '').lower()
+            tags  = str(r.get('tags') or '').lower()
+            return title.startswith('diary:') or prompt_name in title or prompt_name in tags
+        rows = [r for r in rows if _matches(r)]
+
+    return {'runs': _prep_memories(rows), 'count': len(rows)}
+
+
+@app.get('/api/ui/runs')
+async def ui_runs(request: Request):
+    """
+    List prompt_runs rows (actual run telemetry with token counts).
+    Query params:
+      project     – filter by project ('global' = all)
+      prompt_id   – filter to a single prompt's runs (preferred linkage)
+      prompt_name – fallback filter when prompt_id is missing
+      limit       – max rows returned (default 50, cap 200)
+    Response: { runs: [...], stats: { run_count, sum_in, sum_out, sum_cache_read, ... } }
+    """
+    auth_info   = await verify_auth(request)
+    project     = request.query_params.get('project') or 'global'
+    assert_scope(auth_info, project)
+    prompt_id   = request.query_params.get('prompt_id') or None
+    prompt_name = request.query_params.get('prompt_name') or None
+    limit       = min(int(request.query_params.get('limit', '50')), 200)
+
+    rows = await list_runs(project=project, prompt_id=prompt_id,
+                           prompt_name=prompt_name, limit=limit)
+    stats = await run_stats(project=project, prompt_id=prompt_id,
+                            prompt_name=prompt_name)
+
+    # normalise created_at → iso string for sqlite rows
+    for r in rows:
+        ca = r.get('created_at')
+        if ca is not None and not isinstance(ca, str):
+            try:
+                r['created_at'] = ca.isoformat()
+            except Exception:
+                r['created_at'] = str(ca)
+
+    # Coerce Decimal/float from aggregates → plain numbers
+    clean_stats = {}
+    for k, v in (stats or {}).items():
+        try:
+            clean_stats[k] = float(v) if v is not None else 0
+        except Exception:
+            clean_stats[k] = 0
+
+    return {'runs': rows, 'count': len(rows), 'stats': clean_stats}
+
+
+# ── Webhook ────────────────────────────────────────────────────────────────────
+
+@app.post('/webhook/recall')
+async def handle(request: Request):
+    auth_info = await verify_auth(request)
+    try:
+        body = await request.json()
+    except (JSONDecodeError, Exception):
+        return JSONResponse(
+            status_code=400,
+            content={'error': 'Request body is not valid JSON'},
+        )
+    command = str(body.get('command') or '').lower().strip()
+    try: request.state.webhook_command = command
+    except Exception: pass
+    assert_scope(auth_info, str(body.get('project') or 'global'))
+    handler = DISPATCH.get(command)
+
+    # Resolve alias to canonical name for permission check
+    canonical = command
+    for name, fn in DISPATCH.items():
+        if fn is handler and name in COMMAND_MIN_ROLE:
+            canonical = name
+            break
+
+    caller_role = auth_info.get('role', 'viewer')
+    blocked = ROLE_PERMISSIONS.get(caller_role, ROLE_PERMISSIONS['viewer'])
+    if canonical in blocked:
+        required = COMMAND_MIN_ROLE.get(canonical, 'owner')
+        return JSONResponse(
+            status_code=403,
+            content={'error': 'insufficient permissions', 'required_role': required},
+        )
+
+    if handler is None:
+        display = command[:100] + '...' if len(command) > 100 else command
+        help_data = await cmd_recall_help(body)
+        return JSONResponse(
+            status_code=400,
+            content={
+                'error': f'Unknown command: {display!r}',
+                'hint': 'Send {"command": "recall_help"} for the full reference.',
+                'available_commands': KNOWN_COMMANDS,
+                'commands': help_data['commands'],
+            },
+        )
+
+    result = await handler(body)
+    result['_use_command'] = canonical
+    if command != canonical:
+        result['_was_alias'] = True
+        result['_raw_command'] = command
+    return result

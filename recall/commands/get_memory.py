@@ -1,0 +1,47 @@
+import json
+from recall.db import fetch_memory, bump_access_count, fetch_memory_links
+
+
+async def cmd_get_memory(body: dict) -> dict:
+    title = body.get('title', '')
+    memory_id = body.get('id', '')
+    memory_type = body.get('memory_type')
+    project = body.get('project') or None
+
+    if not title and not memory_id:
+        return {'error': 'title or id is required'}
+
+    row = await fetch_memory(memory_id=memory_id or None,
+                             title=title or None,
+                             memory_type=memory_type,
+                             project=project)
+
+    if not row:
+        return {'error': 'Memory not found'}
+
+    await bump_access_count(row['id'])
+
+    tags = row['tags']
+    if isinstance(tags, str):
+        try:
+            tags = json.loads(tags or '[]')
+        except (json.JSONDecodeError, ValueError):
+            tags = []
+
+    links = await fetch_memory_links(row['id'])
+
+    return {
+        'id': row['id'],
+        'title': row['title'],
+        'content_md': row['content_md'],
+        'memory_type': row['memory_type'],
+        'project': row['project'],
+        'module': row['module'],
+        'tags': tags,
+        'resolution': row['resolution'],
+        'access_count': row['access_count'],
+        'created_at': row['created_at'],
+        'updated_at': row['updated_at'],
+        'links_out': links['links_out'],
+        'links_in':  links['links_in'],
+    }
