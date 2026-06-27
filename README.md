@@ -1,6 +1,8 @@
 <div align="center">
 
-# 📜 Recall
+<img src="assets/recall-logo.svg" alt="Recall logo" width="150" height="150" />
+
+# Recall
 
 ### Shared memory for your team's AI — every agent, every project, one brain.
 
