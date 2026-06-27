@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Headless incremental Recall scour — fired by git post-commit / post-merge hooks.
+# Best-effort, fire-and-forget. Reads ONLY the diff, derives ONLY high-confidence facts,
+# saves them via the recall MCP tools (using headless `claude -p`). Never blocks the commit.
+#
+# Usage: recall-incremental <FROM_REF> [TO_REF]      (TO defaults to HEAD)
+# Portable to bash 3.2 (macOS) — no mapfile/associative arrays.
+set -u
+
+FROM="${1:-HEAD~1}"
+TO="${2:-HEAD}"
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+cd "$ROOT" || exit 0
+PROJECT="$(basename "$ROOT")"
+SHA="$(git rev-parse "$TO" 2>/dev/null)" || exit 0
+
+# changed source files in the range (extensions kept conservative to avoid noise)
+FILES="$(git diff --name-only "$FROM" "$TO" -- \
+  '*.py' '*.ts' '*.tsx' '*.js' '*.jsx' '*.go' '*.rs' '*.java' '*.rb' \
+  '*.php' '*.c' '*.cc' '*.cpp' '*.h' '*.hpp' '*.cs' '*.kt' '*.swift' '*.scala' 2>/dev/null)"
+[ -z "$FILES" ] && exit 0
+
+CLAUDE_BIN="$(command -v claude 2>/dev/null)"
+[ -z "$CLAUDE_BIN" ] && [ -x "$HOME/.claude/local/claude" ] && CLAUDE_BIN="$HOME/.claude/local/claude"
+[ -z "$CLAUDE_BIN" ] && exit 0
+
+mkdir -p "$HOME/.recall"
+
+PROMPT="NON-INTERACTIVE incremental Recall scour. Repo: '$PROJECT'. Commit: $SHA.
+
+Changed files:
+$FILES
+
+Read each changed file FULLY. Derive ONLY high-confidence facts from CODE BEHAVIOR — never from comments (comments are not evidence). Capture:
+- conventions / 'how we write code here'  -> recall_save_memory (memory_type 'note')
+- deliberate choices + why                -> recall_save_memory (memory_type 'decision')
+- how a feature must work                 -> recall_save_requirement
+- reusable style rules                    -> recall_save_prompt
+
+RULES:
+- Every convention needs >=2 file:line citations. Single-instance => SKIP it.
+- Tag each fact body with 'source:scour scoured_at:$SHA' and include the citations.
+- project='$PROJECT' for app-specific facts, 'global' only for clearly cross-cutting conventions.
+- If a change makes an existing fact wrong, save the corrected version.
+- SKIP anything ambiguous. Do NOT guess intent. Do NOT ask questions. Be terse."
+
+# fire it; log for debugging, never fail the hook
+"$CLAUDE_BIN" -p "$PROMPT" >> "$HOME/.recall/incremental.log" 2>&1 || true
+exit 0
