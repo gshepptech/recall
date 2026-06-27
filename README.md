@@ -87,6 +87,8 @@ Claude calls `recall_save_memory` / `recall_search` itself. No commands to memor
 
 ## ⭐ The headline feature: `/recall:scour`
 
+<div align="center"><img src="assets/scour-pipeline.svg" alt="The /recall:scour pipeline" width="100%" /></div>
+
 A blank-slate memory is only as good as what you feed it. `/recall:scour` reads a repository
 **like a senior engineer who's lived in it for months** — then writes high-signal, cited
 facts into Recall. It does **not** glance.

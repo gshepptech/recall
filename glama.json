@@ -1,8 +1,0 @@
-{
-  "$schema": "https://glama.ai/schema/mcp-server.json",
-  "name": "Recall",
-  "description": "Shared persistent memory for Claude Code, Gemini CLI, and Codex. PostgreSQL-backed pool with hybrid vector + keyword search, role-based access, and auto-save hooks.",
-  "license": "MIT",
-  "homepage": "https://recall.dev",
-  "repository": "https://github.com/gshepptech/recall"
-}

@@ -1,0 +1,60 @@
+<svg width="1100" height="380" viewBox="0 0 1100 380" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="/recall:scour pipeline">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1100" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#a78bfa"/><stop offset="0.5" stop-color="#7c3aed"/><stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+    <marker id="arr" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="#7c83a3"/></marker>
+  </defs>
+
+  <rect width="1100" height="380" rx="20" fill="#0b1022" stroke="#241c4a" stroke-width="2"/>
+  <text x="40" y="52" font-family="Inter, Helvetica, Arial, sans-serif" font-size="26" font-weight="800" fill="url(#g)">/recall:scour</text>
+  <text x="190" y="52" font-family="Inter, Helvetica, Arial, sans-serif" font-size="18" fill="#8b93b8">— read a codebase like the back of your hand, then write evidence-backed facts</text>
+
+  <!-- connecting line -->
+  <line x1="110" y1="170" x2="990" y2="170" stroke="#2a2150" stroke-width="2"/>
+
+  <!-- stage helper: circles + labels -->
+  <g font-family="Inter, Helvetica, Arial, sans-serif" text-anchor="middle">
+    <!-- 1 Map -->
+    <circle cx="110" cy="170" r="26" fill="#140d33" stroke="url(#g)" stroke-width="3"/>
+    <text x="110" y="178" font-size="22" font-weight="700" fill="#e6e9ff">1</text>
+    <text x="110" y="230" font-size="17" font-weight="700" fill="#c7d2fe">Map</text>
+    <text x="110" y="252" font-size="13" fill="#8b93b8">structure + SHA</text>
+
+    <!-- 2 Deep-read (fan-out) -->
+    <circle cx="286" cy="170" r="26" fill="#140d33" stroke="url(#g)" stroke-width="3"/>
+    <text x="286" y="178" font-size="22" font-weight="700" fill="#e6e9ff">2</text>
+    <text x="286" y="230" font-size="17" font-weight="700" fill="#c7d2fe">Deep-read</text>
+    <text x="286" y="252" font-size="13" fill="#8b93b8">readers, fan-out</text>
+    <g fill="url(#g)"><circle cx="266" cy="118" r="5"/><circle cx="286" cy="106" r="5"/><circle cx="306" cy="118" r="5"/></g>
+    <g stroke="#3a2f6b" stroke-width="1.5"><line x1="286" y1="144" x2="266" y2="123"/><line x1="286" y1="144" x2="286" y2="111"/><line x1="286" y1="144" x2="306" y2="123"/></g>
+
+    <!-- 3 Synthesize -->
+    <circle cx="462" cy="170" r="26" fill="#140d33" stroke="url(#g)" stroke-width="3"/>
+    <text x="462" y="178" font-size="22" font-weight="700" fill="#e6e9ff">3</text>
+    <text x="462" y="230" font-size="17" font-weight="700" fill="#c7d2fe">Synthesize</text>
+    <text x="462" y="252" font-size="13" fill="#8b93b8">dedup + corroborate</text>
+
+    <!-- 4 Clarify -->
+    <circle cx="638" cy="170" r="26" fill="#140d33" stroke="url(#g)" stroke-width="3"/>
+    <text x="638" y="178" font-size="22" font-weight="700" fill="#e6e9ff">4</text>
+    <text x="638" y="230" font-size="17" font-weight="700" fill="#c7d2fe">Clarify</text>
+    <text x="638" y="252" font-size="13" fill="#8b93b8">ask the human</text>
+
+    <!-- 5 Verify (skeptic fan-out) -->
+    <circle cx="814" cy="170" r="26" fill="#140d33" stroke="url(#g)" stroke-width="3"/>
+    <text x="814" y="178" font-size="22" font-weight="700" fill="#e6e9ff">5</text>
+    <text x="814" y="230" font-size="17" font-weight="700" fill="#c7d2fe">Verify</text>
+    <text x="814" y="252" font-size="13" fill="#8b93b8">skeptics refute</text>
+    <g fill="url(#g)"><circle cx="794" cy="118" r="5"/><circle cx="814" cy="106" r="5"/><circle cx="834" cy="118" r="5"/></g>
+    <g stroke="#3a2f6b" stroke-width="1.5"><line x1="814" y1="144" x2="794" y2="123"/><line x1="814" y1="144" x2="814" y2="111"/><line x1="814" y1="144" x2="834" y2="123"/></g>
+
+    <!-- 6 Write -->
+    <circle cx="990" cy="170" r="26" fill="#140d33" stroke="url(#g)" stroke-width="3"/>
+    <text x="990" y="178" font-size="22" font-weight="700" fill="#e6e9ff">6</text>
+    <text x="990" y="230" font-size="17" font-weight="700" fill="#c7d2fe">Write</text>
+    <text x="990" y="252" font-size="13" fill="#8b93b8">→ Recall, with proof</text>
+  </g>
+
+  <text x="550" y="330" text-anchor="middle" font-family="Inter, Helvetica, Arial, sans-serif" font-size="15" fill="#6b7299">behavior &gt; comments · ≥2 citations per fact · git-SHA provenance</text>
+</svg>
