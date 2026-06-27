@@ -57,24 +57,24 @@ none of the work happens there.
 
 ## Quickstart
 
-### 1 — Stand up the server
+### 1 — Stand up the server (one command)
 ```bash
 git clone https://github.com/gshepptech/recall && cd recall
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[postgres]"
-
-cp .env.example .env        # set RECALL_TOKEN + your Postgres creds
-docker compose up -d postgres
-python3 -m recall --no-onboarding     # serves on :8000
+./install.sh
 ```
-Expose it to the team with a free tunnel: `cloudflared tunnel --url http://localhost:8000`.
+`install.sh` generates secrets, builds, and launches the whole stack (Postgres + Recall), then
+prints your owner token. Add semantic search anytime — `./install.sh embedder` pulls a local
+model (zero egress). Expose to the team: `cloudflared tunnel --url http://localhost:8000`.
 
-### 2 — Connect a teammate (≈1 minute)
+### 2 — Add a teammate (one command)
 ```bash
-claude mcp add --transport http recall https://your-server/mcp \
-  --header "Authorization: Bearer THEIR_TOKEN"
+./install.sh add-user alice developer
 ```
-Restart Claude Code. That's it — the `recall_*` tools are now available.
+This mints a token and prints alice's ready-to-paste connect line:
+```bash
+claude mcp add --transport http recall <URL>/mcp --header "Authorization: Bearer <token>"
+```
+She restarts Claude Code — the `recall_*` tools are live.
 
 ### 3 — Just talk
 ```
