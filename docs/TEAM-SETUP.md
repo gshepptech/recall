@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="../assets/recall-logo.svg" alt="Recall" width="110" height="110" />
+<img src="../assets/recall-banner.png" alt="Recall — capture knowledge, recall forever" width="100%" />
 
 # Join Recall
 
