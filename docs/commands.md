@@ -151,7 +151,6 @@ curl -s -X POST "http://localhost:8000/webhook/recall" \
 ## log_run
 
 Record what an agent session accomplished, including token usage.
-Called automatically by the Stop hook and recall_watcher.py daemon.
 
 **Required fields:**
 - `command` — `"log_run"`

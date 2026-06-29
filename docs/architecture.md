@@ -160,7 +160,7 @@ sequenceDiagram
 | SQLite backend | Default local backend using FTS5 and sqlite-vec. |
 | Postgres backend | Optional team backend using asyncpg and pgvector. |
 | Web UI | Browser interface for memories, graph view, prompts, requirements, runs, users, and token usage. |
-| Hooks | Claude Code, Gemini CLI, Codex CLI, shell, and statusline integrations that capture runs and keep context fresh. |
+| Plugin | The Claude Code plugin: `/recall:connect`, `/recall:scour`, `/recall:track`, and a SessionStart memory brief. |
 
 ## Data model
 
@@ -315,8 +315,6 @@ operations:
   memory in one view.
 - Richer approval states for requirement-to-decision and requirement-to-prompt
   workflows.
-- More agent installers and examples so every tool feels like a native Recall
-  client.
 - Public demo data that lets new users understand the system in one minute.
 
 ## Positioning summary
