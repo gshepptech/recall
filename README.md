@@ -76,6 +76,8 @@ claude mcp add --transport http recall <URL>/mcp --header "Authorization: Bearer
 ```
 She restarts Claude Code — the `recall_*` tools are live.
 
+> 👥 **Onboarding teammates?** Point them at **[docs/TEAM-SETUP.md](docs/TEAM-SETUP.md)** — a 2-minute join guide.
+
 ### 3 — Just talk
 ```
 "Remember in Recall that we always return Result types, never throw across boundaries."
