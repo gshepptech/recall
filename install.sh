@@ -62,18 +62,30 @@ case "$cmd" in
     ;;
   embedder)
     need_docker
+    set -a; . ./.env; set +a
     echo "• starting Ollama + pulling nomic-embed-text (CPU, ~274MB)…"
     docker compose --profile embedder up -d ollama
     docker exec recall_ollama ollama pull nomic-embed-text
+    # nomic-embed-text = 768 dims. The memories.embedding column was created at the install
+    # default (1536), so migrate it to 768. Existing rows have NULL embeddings (the embedder
+    # was off when they were saved), so this drops nothing real — USING NULL is safe.
+    echo "• migrating embedding column to 768 dims…"
+    docker exec -e PGPASSWORD="${POSTGRES_PASSWORD}" recall_postgres \
+      psql -U "${POSTGRES_USER:-recall}" -d "${POSTGRES_DB:-recall}" -v ON_ERROR_STOP=1 -c \
+      "DROP INDEX IF EXISTS idx_memories_embedding; \
+       ALTER TABLE memories ALTER COLUMN embedding TYPE halfvec(768) USING NULL; \
+       CREATE INDEX idx_memories_embedding ON memories USING hnsw (embedding halfvec_cosine_ops);" \
+      || { echo "✗ column migration failed — semantic NOT enabled"; exit 1; }
     # enable semantic in .env (idempotent) and restart the server
     grep -q '^OPENAI_API_BASE=' .env || cat >> .env <<EOF
 OPENAI_API_BASE=http://ollama:11434/v1
 OPENAI_API_KEY=local
 RECALL_EMBEDDING_MODEL=nomic-embed-text
 EOF
-    sed -i.bak 's/^RECALL_EMBED_DIM=.*/RECALL_EMBED_DIM=768/' .env && rm -f .env.bak
+    grep -q '^RECALL_EMBED_DIM=' .env && { sed -i.bak 's/^RECALL_EMBED_DIM=.*/RECALL_EMBED_DIM=768/' .env && rm -f .env.bak; } || echo 'RECALL_EMBED_DIM=768' >> .env
     docker compose up -d
-    echo "✓ semantic search enabled (local, zero egress)."
+    echo "✓ semantic search enabled (nomic-embed-text · 768d · local · zero egress)."
+    echo "  Existing entries have no vectors yet — RE-SAVE them to embed (re-run your publish; it's idempotent)."
     ;;
   add-user)
     name="${2:?usage: ./install.sh add-user <name> [role]}"; role="${3:-developer}"
