@@ -54,13 +54,22 @@ Set a persona when creating a token in the Web UI or via `create_token`.
 
 ## Onboarding: Claude Code
 
-Install the plugin, then connect (inside Claude Code):
+Install the plugin (inside Claude Code):
 
 ```
 /plugin marketplace add gshepptech/recall
 /plugin install recall@recall
-/recall:connect <RECALL_URL> <YOUR_TOKEN>
 ```
+
+Save your creds **in your terminal** (token read silently — never in chat/history):
+
+```bash
+read -rp 'Recall URL (http://host:8000): ' U; read -rsp 'Recall token: ' T; echo; \
+mkdir -p ~/.recall; printf 'RECALL_URL=%s\nRECALL_TOKEN=%s\n' "$U" "$T" > ~/.recall/token; \
+chmod 600 ~/.recall/token; unset T
+```
+
+Then register, in Claude Code: `/recall:connect`
 
 Restart Claude Code. The `recall_*` tools load, a **memory brief auto-loads** each session, and
 you can talk to memory naturally ("recall what we decided about auth", "remember we always X").

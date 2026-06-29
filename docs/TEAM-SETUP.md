@@ -34,14 +34,25 @@ Inside Claude Code:
 
 > Updating later? `/plugin marketplace update recall` then `/plugin install recall@recall`.
 
-## 2 · Connect to the server
+## 2 · Connect to the server (token-safe)
+
+**a.** In your **terminal**, save your credentials once. The token is read *silently* — it
+never shows on screen, in shell history, or in any chat:
+
+```bash
+read -rp 'Recall URL (http://host:8000): ' U; read -rsp 'Recall token: ' T; echo; \
+mkdir -p ~/.recall; printf 'RECALL_URL=%s\nRECALL_TOKEN=%s\n' "$U" "$T" > ~/.recall/token; \
+chmod 600 ~/.recall/token; unset T
+```
+
+**b.** In Claude Code, register it (reads the saved creds — no token typed here):
 
 ```
-/recall:connect <RECALL_URL> <YOUR_TOKEN>
+/recall:connect
 ```
 
-`<RECALL_URL>` is the **base** URL (e.g. `http://<host>:8000`, no `/mcp`). This one command
-registers the memory server **and** saves your credentials locally so the auto-brief works.
+The URL isn't a secret (it's a private tailnet address); only the token is, which is why only
+the token uses the silent prompt. Your token lives only in `~/.recall/token` (mode 600).
 
 ## 3 · Restart Claude Code
 

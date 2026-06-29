@@ -1,34 +1,40 @@
 ---
-description: Connect this Claude Code to your team's Recall memory server (one-time setup).
-argument-hint: "<server-url> <token>"
+description: Register the Recall MCP server from your saved credentials. The token never passes through chat.
 allowed-tools: Bash
 ---
 
-# /recall:connect — wire Claude Code to the team Recall server
+# /recall:connect — register Recall (token-safe)
 
-Parse `$ARGUMENTS` as `<server-url> <token>`, where `<server-url>` is the BASE url
-(e.g. `http://recall-1:8000`, no `/mcp`). If either is missing, ask the user.
+Recall reads your credentials from `~/.recall/token` — so your token is **never typed into this
+conversation**. You save it once in your terminal (silently), then this command just registers
+the MCP server using it.
 
-Run this (substituting the values):
+Run exactly this:
 
 ```bash
-URL="<server-url>"; TOKEN="<token>"
-# 1. register the MCP server at USER scope (available in every project + headless hooks)
-claude mcp add --transport http recall "$URL/mcp" --header "Authorization: Bearer $TOKEN" -s user
-# 2. write creds for the SessionStart brief + git-hook incremental scour to use
-mkdir -p ~/.recall
-printf 'RECALL_URL=%s\nRECALL_TOKEN=%s\n' "$URL" "$TOKEN" > ~/.recall/token
-chmod 600 ~/.recall/token
-# 3. confirm
-claude mcp list | grep -i recall || true
+if [ ! -f "$HOME/.recall/token" ]; then
+  echo "No saved credentials yet."
+  echo "In your TERMINAL (not here), run this ONCE — it reads the token silently, so it never"
+  echo "appears on screen, in shell history, or in any chat:"
+  echo
+  echo "  read -rp 'Recall URL (http://host:8000): ' U; read -rsp 'Recall token: ' T; echo; \\"
+  echo "  mkdir -p ~/.recall; printf 'RECALL_URL=%s\\nRECALL_TOKEN=%s\\n' \"\$U\" \"\$T\" > ~/.recall/token; \\"
+  echo "  chmod 600 ~/.recall/token; unset T"
+  echo
+  echo "Then re-run /recall:connect."
+  exit 0
+fi
+set -a; . "$HOME/.recall/token"; set +a
+claude mcp remove recall >/dev/null 2>&1 || true
+claude mcp add --transport http recall "$RECALL_URL/mcp" --header "Authorization: Bearer $RECALL_TOKEN" -s user
+echo "✓ Recall registered at user scope from ~/.recall/token."
+echo "  Restart Claude Code — the recall_* tools + the SessionStart memory brief load next session."
 ```
 
-Then tell the user:
-- **Restart Claude Code.** From the next session, the `recall_*` tools are live and a short
-  **memory brief auto-loads** for the current repo (project facts + global conventions).
-- Just talk — *"recall what we decided about auth"*, *"remember we always X"* — Claude calls
-  the tools itself.
-- `/recall:scour` to seed a repo's knowledge; `/recall:track` to keep it fresh on every commit.
+Why this is safe: the token is read from the file into an environment variable and passed to
+`claude mcp add` **by reference** (`$RECALL_TOKEN`), so its value never appears in this
+conversation. It lives only in your local MCP config and `~/.recall/token` (mode 600) — on your
+machine, never in the repo, never in chat.
 
-Note: the database + embedder live on the server. This machine only stores the URL + token
-(in `~/.recall/token`, mode 600). Nothing else is installed locally.
+(`<RECALL_URL>` is the base URL, e.g. `http://host:8000`, no `/mcp`. The URL is not a secret —
+only the token is, which is why only the token uses the silent prompt.)

@@ -77,9 +77,9 @@ Teammate installs the plugin + connects, inside Claude Code:
 ```
 /plugin marketplace add gshepptech/recall
 /plugin install recall@recall
-/recall:connect <RECALL_URL> <token>
 ```
-Restart Claude Code — the `recall_*` tools are live and a **memory brief auto-loads** each session.
+Then save creds in your terminal (token read **silently**, never in chat) and run `/recall:connect` —
+steps in **[docs/TEAM-SETUP.md](docs/TEAM-SETUP.md)**. Restart Claude Code — tools + memory brief load.
 
 > 👥 Full join guide: **[docs/TEAM-SETUP.md](docs/TEAM-SETUP.md)** (~2 minutes).
 
