@@ -2,7 +2,5 @@
   "name": "recall",
   "version": "0.1.0",
   "description": "Team memory for Claude Code. Connect to a self-hosted Recall server and scour codebases into shared, evidence-backed memory.",
-  "author": "Garrett",
-  "commands": "./commands",
-  "agents": "./agents"
+  "author": { "name": "Garrett" }
 }
