@@ -54,30 +54,27 @@ Set a persona when creating a token in the Web UI or via `create_token`.
 
 ## Onboarding: Claude Code
 
-Your admin gives you two things: the **server URL** and your **token**. Then:
+Install the plugin, then connect (inside Claude Code):
 
-```bash
-claude mcp add --transport http recall https://recall.yourdomain.com/mcp \
-  --header "Authorization: Bearer YOUR_TOKEN"
+```
+/plugin marketplace add gshepptech/recall
+/plugin install recall@recall
+/recall:connect <RECALL_URL> <YOUR_TOKEN>
 ```
 
-Restart Claude Code — the `recall_*` tools are now available, and you can talk to memory
-naturally ("recall what we decided about auth", "remember we always X").
+Restart Claude Code. The `recall_*` tools load, a **memory brief auto-loads** each session, and
+you can talk to memory naturally ("recall what we decided about auth", "remember we always X").
+Then `/recall:scour` to seed a repo and `/recall:track` to keep it fresh on every commit.
 
-For `/recall:scour`, `/recall:connect`, and the auto-save hooks + statusline, install the
-**Recall plugin** (this repo's [`plugin/`](../plugin/)) as a Claude Code plugin. Because the
-repo is private, use the plugin (or a local clone) rather than fetching a raw URL.
+→ Full step-by-step: **[TEAM-SETUP.md](TEAM-SETUP.md)**
 
 ---
 
 ## Adding a teammate
 
-1. Open the Web UI → Tokens tab → Create token
-2. Enter name, label, role, and default project
-3. Share the token with your teammate
-4. They paste the Claude Code install prompt above and enter the token when prompted
-
-Recall runs on your server — teammates connect directly to your webhook URL. No tunnel needed.
+1. Admin mints a token: `./install.sh add-user <name> developer`
+2. Share the **token** + the **server URL** with them.
+3. They follow **[TEAM-SETUP.md](TEAM-SETUP.md)** — install plugin → `/recall:connect` → restart.
 
 ---
 

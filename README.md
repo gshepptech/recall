@@ -34,6 +34,8 @@ harder problem:
 | 🔒 **Self-hosted** | Postgres + an optional **local** embedder. Your data never has to leave your network |
 | 🔌 **MCP-native** | Claude calls `recall_*` tools itself — no copy-paste, no ceremony |
 | 🔍 **`/recall:scour`** | Deliberately reads a codebase and writes evidence-backed facts into memory |
+| 🌅 **Wakes up knowing** | A session-start brief auto-loads this repo's facts + global conventions |
+| 🔁 **Auto-updates** | `/recall:track` once → every commit refreshes shared memory, hands-off |
 | ♻️ **Stays fresh** | Confidence decay + staleness flags so old facts don't quietly become lies |
 
 ---
@@ -66,17 +68,20 @@ git clone https://github.com/gshepptech/recall && cd recall
 prints your owner token. Add semantic search anytime — `./install.sh embedder` pulls a local
 model (zero egress). Expose to the team: `cloudflared tunnel --url http://localhost:8000`.
 
-### 2 — Add a teammate (one command)
+### 2 — Add a teammate
+Admin mints a token:
 ```bash
 ./install.sh add-user alice developer
 ```
-This mints a token and prints alice's ready-to-paste connect line:
-```bash
-claude mcp add --transport http recall <URL>/mcp --header "Authorization: Bearer <token>"
+Teammate installs the plugin + connects, inside Claude Code:
 ```
-She restarts Claude Code — the `recall_*` tools are live.
+/plugin marketplace add gshepptech/recall
+/plugin install recall@recall
+/recall:connect <RECALL_URL> <token>
+```
+Restart Claude Code — the `recall_*` tools are live and a **memory brief auto-loads** each session.
 
-> 👥 **Onboarding teammates?** Point them at **[docs/TEAM-SETUP.md](docs/TEAM-SETUP.md)** — a 2-minute join guide.
+> 👥 Full join guide: **[docs/TEAM-SETUP.md](docs/TEAM-SETUP.md)** (~2 minutes).
 
 ### 3 — Just talk
 ```
@@ -107,8 +112,9 @@ facts into Recall. It does **not** glance.
 /recall:scour . --scope auto --depth exhaustive
 ```
 
-> Ships as a Claude Code plugin in [`plugin/`](plugin/) — `/recall:scour`, `/recall:connect`,
-> and the `recall-reader` + `recall-skeptic` agents that enforce the quality bar above.
+> Ships as a Claude Code plugin in [`plugin/`](plugin/): `/recall:scour`, `/recall:connect`,
+> `/recall:track` (auto-refresh on every commit), a **SessionStart auto-brief**, and the
+> `recall-reader` + `recall-skeptic` agents that enforce the quality bar above.
 
 ---
 
@@ -132,7 +138,7 @@ Local embedding is a tiny ~274 MB model on CPU — **no GPU required**, runs on 
 | `decision` | Choices the team committed to, and why |
 | `requirement` | How a feature is supposed to work |
 | `prompt` | Reusable, named style rules |
-| `conversation` | Auto-saved session diaries (Stop / PreCompact hooks) |
+| `conversation` | Session diaries (optional server-side auto-capture) |
 
 ---
 
