@@ -1,0 +1,11 @@
+{
+  "name": "recall",
+  "owner": { "name": "Garrett Sheppard" },
+  "plugins": [
+    {
+      "name": "recall",
+      "source": "./plugin",
+      "description": "Team memory for Claude Code — connect to a self-hosted Recall server, scour codebases into shared evidence-backed memory, and auto-refresh it on commits."
+    }
+  ]
+}
