@@ -180,7 +180,7 @@ def main():
         os.environ['RECALL_SKIP_ONBOARDING'] = '1'
 
     if not os.path.exists('.env') and os.environ.get('RECALL_SKIP_ONBOARDING') != '1':
-        print('No .env found. Run: python3 installer.py', file=sys.stderr)
+        print('No .env found. Run: ./install.sh  (or: cp .env.example .env)', file=sys.stderr)
         sys.exit(1)
 
     load_dotenv()
