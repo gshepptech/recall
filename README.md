@@ -1,10 +1,8 @@
 <div align="center">
 
-<img src="assets/recall-logo.svg" alt="Recall logo" width="150" height="150" />
+<img src="assets/recall-banner.png" alt="Recall — capture knowledge, recall forever" width="100%" />
 
 # Recall
-
-### Shared memory for your team's AI — every agent, every project, one brain.
 
 Stop re-explaining your codebase to Claude every session. **Recall** is a self-hosted
 memory server that lets your whole team's Claude Code instances read and write the
