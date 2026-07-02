@@ -155,18 +155,21 @@ async def _store_wikilinks_sqlite(db: 'aiosqlite.Connection', from_id: str,
 
 
 async def _sqlite_save_memory(db: 'aiosqlite.Connection', data: dict, embedding: list) -> str:
+    from recall.scoring import clamp_confidence
     memory_id = new_id()
     vec_bytes = struct.pack(f'{len(embedding)}f', *embedding)
 
+    conf = clamp_confidence(data.get('confidence_score', data.get('confidence')))
     await db.execute("""
         INSERT INTO memories
             (id, project, module, memory_type, title, content_md,
-             tags, resolution, created_by, searchable, pending_review)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+             tags, resolution, created_by, searchable, pending_review, confidence_score)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, COALESCE(?, 1.0))
         ON CONFLICT(title, memory_type, project) DO UPDATE SET
             content_md = excluded.content_md,
             tags = excluded.tags,
             pending_review = excluded.pending_review,
+            confidence_score = COALESCE(?, memories.confidence_score),
             updated_at = CURRENT_TIMESTAMP
     """, [
         memory_id,
@@ -179,6 +182,8 @@ async def _sqlite_save_memory(db: 'aiosqlite.Connection', data: dict, embedding:
         data.get('resolution'),
         data.get('created_by'),
         data.get('pending_review', 0),
+        conf,
+        conf,
     ])
 
     async with db.execute(
@@ -349,6 +354,7 @@ async def _fts_search(db: 'aiosqlite.Connection', query_text: str, project: str,
             'project': row['project'],
             'module': row['module'],
             'score': round(rescore(raw, mem), 4),
+            'relevance': raw,
             'created_at': row['created_at'],
             'access_count': row['access_count'],
             'confidence_score': row['confidence_score'],
@@ -451,6 +457,7 @@ async def search_memories(db: 'aiosqlite.Connection', query_text: str, query_emb
             'project': row['project'],
             'module': row['module'],
             'score': round(rescore(raw, mem), 4),
+            'relevance': raw,
             'created_at': row['created_at'],
             'access_count': row['access_count'],
             'confidence_score': row['confidence_score'],

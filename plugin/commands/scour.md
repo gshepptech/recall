@@ -77,6 +77,9 @@ Every fact body MUST end with a provenance block:
 ```
 — scour evidence: <file:line>, <file:line>  | scoured_at: <sha> | confidence: <0–1>
 ```
+Also pass that same `<0–1>` value as the `confidence` argument of the save tool (not only in the
+provenance text) — this is the reader's confidence after the skeptic's verdict (SURVIVES → keep,
+DOWNGRADE → lower it). It is persisted to `confidence_score` and de-ranks weaker facts in search.
 Tag each fact with `source:scour`. Use `project` = the repo name for project-scope facts, or
 `global` for global-scope facts.
 

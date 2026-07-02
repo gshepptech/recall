@@ -243,6 +243,44 @@ def was_alias_field():
     assert r.get('_use_command') == 'search'
 
 
+def search_returns_relevance():
+    # Every result carries a query-relevance value in [0,1], distinct from the health score.
+    r = post('search', {'query': 'JWT authentication', 'limit': 5})
+    for x in r['results']:
+        assert 'relevance' in x, f'relevance missing from result {x}'
+        assert 0.0 <= x['relevance'] <= 1.0, f'relevance out of range: {x["relevance"]}'
+
+
+def confidence_persist_and_preserve():
+    # Confidence provided at save time is persisted...
+    tok = 'zzqconfidencemarker'
+    post('save_memory', {'title': f'{tok} alpha', 'content_md': 'confidence persistence probe', 'confidence': 0.2})
+    r = post('search', {'query': tok, 'limit': 5})
+    hit = next((x for x in r['results'] if x['title'] == f'{tok} alpha'), None)
+    assert hit is not None, f'saved memory not found in {r}'
+    assert abs(hit['confidence_score'] - 0.2) < 1e-6, f'expected confidence 0.2, got {hit["confidence_score"]}'
+    # ...and a re-save WITHOUT confidence must not clobber it (COALESCE preserve).
+    post('save_memory', {'title': f'{tok} alpha', 'content_md': 'updated body, no confidence'})
+    r2 = post('search', {'query': tok, 'limit': 5})
+    hit2 = next((x for x in r2['results'] if x['title'] == f'{tok} alpha'), None)
+    assert hit2 is not None and abs(hit2['confidence_score'] - 0.2) < 1e-6, \
+        f'confidence should survive a confidence-less re-save, got {hit2}'
+
+
+def relevance_floor_suppresses():
+    # Floor 0 returns matches; a floor just above the best match suppresses everything and
+    # reports it. Deriving the threshold from observed relevance keeps this valid in both
+    # keyword-only (relevance clamps to 1.0) and hybrid modes.
+    q = {'query': 'JWT authentication', 'limit': 5}
+    low = post('search', {**q, 'min_relevance': 0.0})
+    assert low['count'] > 0, f'expected results at floor 0, got {low}'
+    top = max(x['relevance'] for x in low['results'])
+    high = post('search', {**q, 'min_relevance': round(top + 0.01, 4)})
+    assert high['count'] == 0, f'expected all suppressed above top relevance {top}, got {high}'
+    assert high.get('suppressed_low_relevance', 0) > 0, f'expected suppression count, got {high}'
+    assert 'note' in high, f'expected a no-confident-match note, got {high}'
+
+
 # ─── Test registry ────────────────────────────────────────────────────────────
 
 TESTS = [
@@ -262,6 +300,9 @@ TESTS = [
     ('log_run alias: log_session',     log_run_alias),
     ('log_error plain',                log_error_plain),
     ('save_requirement',               save_requirement_plain),
+    ('search returns relevance field', search_returns_relevance),
+    ('confidence persist + preserve',  confidence_persist_and_preserve),
+    ('relevance floor suppresses',     relevance_floor_suppresses),
     ('unknown command fallback',       unknown_command),
     ('auth failure (bad token)',       auth_failure),
     ('_use_command present always',    use_command_field),

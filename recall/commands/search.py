@@ -2,7 +2,7 @@ from recall.db import find_memories, count_memories_by_project
 from recall.scoring import compute_score
 from recall.embed import embed
 from recall.commands import _require_project, _parse_limit
-from recall.config import SNIPPET_LENGTHS
+from recall.config import SNIPPET_LENGTHS, MIN_RELEVANCE
 
 CHARS_PER_TOKEN = 4
 
@@ -58,12 +58,31 @@ async def cmd_search(body: dict) -> dict:
     results_list, fts_degraded, fts_reason = await find_memories(
         query, query_embedding, project, limit, memory_type=memory_type
     )
+
+    try:
+        min_relevance = float(body.get('min_relevance', MIN_RELEVANCE))
+    except (ValueError, TypeError):
+        min_relevance = MIN_RELEVANCE
+
+    suppressed = 0
+    if min_relevance > 0:
+        kept = [r for r in results_list if r.get('relevance', 0.0) >= min_relevance]
+        suppressed = len(results_list) - len(kept)
+        results_list = kept
+
     results, tokens_used = apply_token_budget(results_list, max_tokens)
     for r in results:
         r['score'] = round(compute_score(r), 4)
 
     total = await count_memories_by_project(project)
     response = {'results': results, 'count': len(results), 'total': total, 'tokens_used': tokens_used}
+    if suppressed:
+        response['suppressed_low_relevance'] = suppressed
+        if not results:
+            response['note'] = (
+                f'no memory cleared the relevance floor ({min_relevance}); '
+                f'{suppressed} weak match(es) suppressed'
+            )
     if embedding_warning:
         response['degraded'] = True
         response['warning'] = embedding_warning
