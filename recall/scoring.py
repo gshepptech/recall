@@ -10,6 +10,18 @@ DECAY_DAYS       = max(1, int(float(os.getenv('RECALL_DECAY_DAYS', '30'))))
 FREQUENCY_WEIGHT = float(os.getenv('RECALL_FREQUENCY_WEIGHT', '0.1'))
 
 
+def clamp_confidence(value) -> 'float | None':
+    """Normalize a caller-supplied confidence to [0, 1]. Returns None when absent or
+    unparseable so the write path can COALESCE to the column default / existing value."""
+    if value is None:
+        return None
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    return max(0.0, min(1.0, v))
+
+
 def compute_score(mem: dict) -> float:
     """
     Absolute memory health score (0–1), independent of search query.

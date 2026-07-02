@@ -248,8 +248,10 @@ async def _store_wikilinks_pg(conn, from_id: str, content_md: str, project: str)
 
 async def save_memory_pg(pool: 'asyncpg.Pool', data: dict, embedding: list) -> str:
     from recall.db import new_id
+    from recall.scoring import clamp_confidence
     memory_id = new_id()
     vec = _vec_str(embedding)
+    conf = clamp_confidence(data.get('confidence_score', data.get('confidence')))
 
     async with pool.acquire() as conn:
         pending_review = data.get('pending_review', 0)
@@ -257,13 +259,14 @@ async def save_memory_pg(pool: 'asyncpg.Pool', data: dict, embedding: list) -> s
             row = await conn.fetchrow("""
                 INSERT INTO memories
                     (id, project, module, memory_type, title, content_md,
-                     tags, resolution, created_by, searchable, pending_review, embedding)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,1,$10,$11::halfvec)
+                     tags, resolution, created_by, searchable, pending_review, embedding, confidence_score)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,1,$10,$11::halfvec,COALESCE($12,1.0))
                 ON CONFLICT (title, memory_type, project) DO UPDATE SET
                     content_md     = EXCLUDED.content_md,
                     tags           = EXCLUDED.tags,
                     embedding      = EXCLUDED.embedding,
                     pending_review = EXCLUDED.pending_review,
+                    confidence_score = COALESCE($13, memories.confidence_score),
                     updated_at     = NOW()
                 RETURNING id
             """,
@@ -278,17 +281,20 @@ async def save_memory_pg(pool: 'asyncpg.Pool', data: dict, embedding: list) -> s
                 data.get('created_by'),
                 pending_review,
                 vec,
+                conf,
+                conf,
             )
         else:
             row = await conn.fetchrow("""
                 INSERT INTO memories
                     (id, project, module, memory_type, title, content_md,
-                     tags, resolution, created_by, searchable, pending_review)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,1,$10)
+                     tags, resolution, created_by, searchable, pending_review, confidence_score)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,1,$10,COALESCE($11,1.0))
                 ON CONFLICT (title, memory_type, project) DO UPDATE SET
                     content_md     = EXCLUDED.content_md,
                     tags           = EXCLUDED.tags,
                     pending_review = EXCLUDED.pending_review,
+                    confidence_score = COALESCE($12, memories.confidence_score),
                     updated_at     = NOW()
                 RETURNING id
             """,
@@ -302,6 +308,8 @@ async def save_memory_pg(pool: 'asyncpg.Pool', data: dict, embedding: list) -> s
                 data.get('resolution'),
                 data.get('created_by'),
                 pending_review,
+                conf,
+                conf,
             )
 
         resolved_id = row['id'] if row else memory_id
@@ -421,6 +429,7 @@ async def _fts_search_pg(conn, query_text: str, project: str, limit: int,
             'project': row['project'],
             'module': row['module'],
             'score': round(rescore(raw, mem), 4),
+            'relevance': raw,
             'created_at': created_str,
         })
     return results, degraded, reason
@@ -507,6 +516,7 @@ async def search_memories_pg(pool: 'asyncpg.Pool', query_text: str,
                 'project': row['project'],
                 'module': row['module'],
                 'score': round(rescore(raw, mem), 4),
+                'relevance': raw,
                 'created_at': created_str,
             })
 

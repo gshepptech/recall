@@ -121,6 +121,11 @@ _TOOLS: list[types.Tool] = [
                 'project': {'type': 'string', 'description': 'Project scope'},
                 'limit': {'type': 'integer', 'default': 5},
                 'max_tokens': {'type': 'integer', 'default': 2000},
+                'min_relevance': {
+                    'type': 'number',
+                    'description': 'Optional 0-1 floor on query relevance (cosine+FTS blend). Results below it '
+                                   'are suppressed rather than returned as weak guesses. Defaults to RECALL_MIN_RELEVANCE.',
+                },
             },
             'required': ['query'],
         },
@@ -139,6 +144,11 @@ _TOOLS: list[types.Tool] = [
                 'tags': {'type': 'array', 'items': {'type': 'string'}},
                 'resolution': {'type': 'string'},
                 'created_by': {'type': 'string'},
+                'confidence': {
+                    'type': 'number',
+                    'description': 'Optional 0-1 confidence in this fact (e.g. a scour skeptic verdict). '
+                                   'Lowers the memory in search ranking when below 1. Omit to preserve any existing value.',
+                },
             },
             'required': ['title'],
         },
