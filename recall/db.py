@@ -830,14 +830,8 @@ async def delete_memory(memory_id: str, project: str = None) -> Optional[dict]:
         return None
     rowid = row['rowid']
     await _aio_db.execute("DELETE FROM memories WHERE id = ?", [memory_id])
-    try:
-        await _aio_db.execute("DELETE FROM memories_vec WHERE rowid = ?", [rowid])
-    except Exception:
-        pass
-    try:
-        await _aio_db.execute("DELETE FROM memories_fts WHERE rowid = ?", [rowid])
-    except Exception:
-        pass
+    await _aio_db.execute("DELETE FROM memories_vec WHERE rowid = ?", [rowid])
+    await _aio_db.execute("DELETE FROM memories_fts WHERE rowid = ?", [rowid])
     await _aio_db.commit()
     return {
         'id': row['id'],
