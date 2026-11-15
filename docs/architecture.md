@@ -151,14 +151,14 @@ exits silently on any error, so a down server never blocks a session.
 
 A deliberate, multi-agent read of a codebase:
 
-1. **Map.** Record the commit SHA and cut the repo into slices.
-2. **Deep-read.** One `recall-reader` agent per slice returns candidate facts. Each
+1. **Map:** Record the commit SHA and cut the repo into slices.
+2. **Deep-read:** One `recall-reader` agent per slice returns candidate facts. Each
    convention needs at least two `file:line` citations.
-3. **Synthesize.** Merge, corroborate across slices, and check Recall for near-duplicates.
-4. **Clarify.** Ask the user about anything ambiguous instead of guessing.
-5. **Verify.** A `recall-skeptic` agent tries to refute each important fact against the
+3. **Synthesize:** Merge, corroborate across slices, and check Recall for near-duplicates.
+4. **Clarify:** Ask the user about anything ambiguous instead of guessing.
+5. **Verify:** A `recall-skeptic` agent tries to refute each important fact against the
    code. Facts that fail are dropped or downgraded.
-6. **Write.** Save survivors with their citations, the SHA, a `source:scour` tag and a
+6. **Write:** Save survivors with their citations, the SHA, a `source:scour` tag and a
    confidence score.
 
 ### `/recall:track`

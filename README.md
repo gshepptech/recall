@@ -14,24 +14,24 @@ time someone commits.
 
 ## Features
 
-- **Session-start brief.** A SessionStart hook loads the current repo's top facts and
+- **Session-start brief:** A SessionStart hook loads the current repo's top facts and
   the team's global conventions into every new Claude Code session.
-- **Incremental indexing on commit.** `/recall:track` installs git `post-commit` and
+- **Incremental indexing on commit:** `/recall:track` installs git `post-commit` and
   `post-merge` hooks. Each commit runs a headless pass over the changed files and saves
   the facts it can back with at least two `file:line` citations.
-- **Deep codebase reads.** `/recall:scour` splits a repo into slices, reads each one with
+- **Deep codebase reads:** `/recall:scour` splits a repo into slices, reads each one with
   a reader agent, checks the results with a skeptic agent, and asks you about anything
   ambiguous before it writes.
-- **Retrieval confidence and a relevance floor.** Every fact stores a confidence score
+- **Retrieval confidence and a relevance floor:** Every fact stores a confidence score
   that lowers its rank. Search results carry a `relevance` value, and matches below
   `RECALL_MIN_RELEVANCE` (or a per-request `min_relevance`) are suppressed instead of
   returned as if they were good.
-- **Token-safe connect.** You save the token once with a silent terminal prompt, and
+- **Token-safe connect:** You save the token once with a silent terminal prompt, and
   `/recall:connect` reads it from `~/.recall/token`. The token never enters the chat.
-- **Shared, scoped memory.** Projects keep facts apart, and a `global` project holds
+- **Shared, scoped memory:** Projects keep facts apart, and a `global` project holds
   team-wide conventions. Tokens carry a role (owner, admin, developer, viewer) and can be
   limited to one project.
-- **Hybrid search, local if you want it.** Search combines full-text and vector
+- **Hybrid search, local if you want it:** Search combines full-text and vector
   similarity, then adjusts for age and use. It runs keyword-only with no embedder, or
   semantic with a bundled local Ollama model, so no data leaves your network.
 
