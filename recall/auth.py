@@ -1,7 +1,4 @@
-"""
-auth.py — shared auth utilities for server.py and mcp_server.py.
-Extracted to break the server <-> mcp_server circular import.
-"""
+"""Bearer-token authentication and role permissions shared by the webhook and MCP transports."""
 import os
 import secrets
 from fastapi import HTTPException, Request
@@ -36,11 +33,9 @@ async def verify_auth(request: Request) -> dict:
     # The env token is the owner: every command, no project scope
     if env_token and secrets.compare_digest(token.encode(), env_token.encode()):
         info = {'token': token, 'role': 'owner', 'label': 'owner', 'project_scope': None}
-        try: request.state.token_label = 'owner'
-        except Exception: pass
+        request.state.token_label = 'owner'
         return info
 
-    # DB token lookup — branch on backend
     backend = os.getenv('RECALL_DB_BACKEND', 'sqlite').lower()
     if backend == 'postgres':
         from recall.db_postgres import get_pg_pool, verify_token_pg
@@ -50,8 +45,7 @@ async def verify_auth(request: Request) -> dict:
         result = await verify_token_pg(pool, token)
         if not result:
             raise HTTPException(status_code=401, detail='Unauthorized')
-        try: request.state.token_label = result['label']
-        except Exception: pass
+        request.state.token_label = result['label']
         return {
             'token': token,
             'role': result['role'],
@@ -61,9 +55,7 @@ async def verify_auth(request: Request) -> dict:
 
     # SQLite path
     db, lock = get_db_and_lock()
-    if db is None:
-        raise HTTPException(status_code=503, detail='Database not initialised')
-    if lock is None:
+    if db is None or lock is None:
         raise HTTPException(status_code=503, detail='Database not initialised')
     with lock:
         row = db.execute(
@@ -75,8 +67,7 @@ async def verify_auth(request: Request) -> dict:
         raise HTTPException(status_code=401, detail='Unauthorized')
 
     label = row[1] or ''
-    try: request.state.token_label = label
-    except Exception: pass
+    request.state.token_label = label
     return {'token': token, 'role': row[0], 'label': label, 'project_scope': row[2]}
 
 
