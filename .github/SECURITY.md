@@ -1,21 +1,13 @@
-# Security Policy
+# Security policy
 
-## Supported Versions
+## Supported versions
 
-| Version | Supported |
-|---------|-----------|
-| 0.1.x   | Yes       |
+Only the latest release on `main` receives security fixes.
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
-Please do NOT open a public GitHub issue for security vulnerabilities.
+Do not open a public issue. Report it privately through GitHub's
+[private vulnerability reporting](https://github.com/gshepptech/recall/security/advisories/new).
 
-Email: security@recall.dev
-
-We will respond within 48 hours and aim to release a fix within 7 days of confirmation.
-
-Include:
-- Description of the vulnerability
-- Steps to reproduce
-- Potential impact
-- Any suggested fix (optional)
+Include a description, steps to reproduce, the impact you expect, and a suggested fix if
+you have one. You should get a reply within a few days.

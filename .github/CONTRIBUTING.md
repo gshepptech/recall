@@ -1,38 +1,35 @@
 # Contributing to Recall
 
-Thank you for your interest in contributing.
+## Local development
 
-## Local Development
-
-1. Clone the repo
-2. Install dependencies: see README for stack-specific instructions
-3. Copy `.env.example` to `.env` and fill in your values
-4. Start the stack: follow the Quick Start in the README
-
-## Running Tests
-
-Run the test suite before submitting a PR:
 ```bash
-pytest tests/
+python3 -m venv .venv && . .venv/bin/activate
+pip install -e ".[postgres,dev]"
+cp .env.example .env          # set RECALL_TOKEN
+python -m recall
 ```
 
-## Pull Request Process
+## Checks
 
-1. Fork the repo and create a branch from `main`
-2. Make your changes — keep PRs focused on a single issue
-3. Ensure tests pass
-4. Submit your PR with a clear description of what changed and why
-5. A maintainer will review within a few days
+Run both before opening a pull request. CI runs the same commands.
 
-## Reporting Bugs
+```bash
+ruff check .
+pytest
+```
 
-Open an issue using the Bug Report template. Include logs and your environment details.
+The integration suites start their own server on a free port with a temporary SQLite
+database, so they need no setup. If you change ranking, also run
+`python -m recall.tests.eval_retrieval` and include the before and after numbers.
 
-## Good First Issues
+## Pull requests
 
-Look for issues labelled `good first issue` to get started. These are well-scoped and have enough context to work on without deep project knowledge.
+1. Branch from `main` and keep each pull request to one change.
+2. Add or update tests for behaviour you change.
+3. Update the docs in `docs/` and `CHANGELOG.md` in the same pull request.
+4. Use Conventional Commit messages, for example `fix(search): clamp negative limits`.
 
-## Code Style
+## Reporting bugs
 
-- Python: follow PEP 8, use type hints where practical
-- Commit messages: imperative present tense (`fix: resolve timeout on reconnect`)
+Open an issue with the bug report template. Include the server log, the backend
+(SQLite or PostgreSQL) and the request that failed, with tokens removed.
