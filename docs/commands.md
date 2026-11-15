@@ -43,7 +43,7 @@ The server itself returns these status codes:
 
 | Status | When | Body |
 |---|---|---|
-| 400 | Body is not valid JSON | `{"error": "Request body is not valid JSON"}` |
+| 400 | Body is not a JSON object | `{"error": "Request body must be a JSON object"}` |
 | 400 | Unknown command | `error`, `hint`, `available_commands`, `commands` (the `recall_help` list) |
 | 401 | Missing or unknown token | `{"detail": "Unauthorized"}` |
 | 403 | Role too low | `{"error": "insufficient permissions", "required_role": "<role>"}` |

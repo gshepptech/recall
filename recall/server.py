@@ -138,7 +138,7 @@ COMMAND_MIN_ROLE = {
 }
 
 
-# ── debug_protocol handler (inline — no separate file needed) ─────────────────
+# ── debug_protocol handler ────────────────────────────────────────────────────
 
 async def _cmd_debug_protocol(_body: dict) -> dict:
     count = await debug_memory_count()
@@ -236,7 +236,7 @@ DISPATCH: dict = {
     'server_version':       cmd_version,
 }
 
-# Canonical command names (derived from DISPATCH, no aliases) for error messages
+# Canonical command names, without aliases, listed in unknown-command errors
 KNOWN_COMMANDS = sorted(set(COMMAND_MIN_ROLE.keys()))
 
 
@@ -245,24 +245,31 @@ KNOWN_COMMANDS = sorted(set(COMMAND_MIN_ROLE.keys()))
 _github_version_cache: dict = {'version': None, 'checked': ''}
 
 
+def _fetch_latest_tag() -> str | None:
+    import urllib.request
+    req = urllib.request.Request(
+        'https://api.github.com/repos/gshepptech/recall/tags',
+        headers={'User-Agent': f'recall-server/{__version__}'},
+    )
+    with urllib.request.urlopen(req, timeout=5) as resp:
+        tags = _json.loads(resp.read().decode())
+    if tags and isinstance(tags, list) and 'name' in tags[0]:
+        return tags[0]['name'].lstrip('v')
+    return None
+
+
 async def _get_latest_github_version() -> str | None:
+    """Latest release tag, checked at most once a day. Offline or rate-limited means None."""
+    import asyncio
     import datetime
     today = datetime.date.today().isoformat()
-    if _github_version_cache['checked'] == today and _github_version_cache['version']:
+    if _github_version_cache['checked'] == today:
         return _github_version_cache['version']
+    _github_version_cache['checked'] = today
     try:
-        import urllib.request
-        req = urllib.request.Request(
-            'https://api.github.com/repos/gshepptech/recall/tags',
-            headers={'User-Agent': f'recall-server/{__version__}'},
-        )
-        resp = urllib.request.urlopen(req, timeout=5)
-        tags = _json.loads(resp.read().decode())
-        if tags and isinstance(tags, list) and 'name' in tags[0]:
-            _github_version_cache['version'] = tags[0]['name'].lstrip('v')
-        _github_version_cache['checked'] = today
-    except Exception:
-        pass
+        _github_version_cache['version'] = await asyncio.to_thread(_fetch_latest_tag)
+    except (OSError, ValueError) as e:
+        logger.info(f'Latest-version check failed: {e}')
     return _github_version_cache['version']
 
 
@@ -664,14 +671,15 @@ async def handle(request: Request):
     auth_info = await verify_auth(request)
     try:
         body = await request.json()
-    except (JSONDecodeError, Exception):
+    except (JSONDecodeError, UnicodeDecodeError):
+        body = None
+    if not isinstance(body, dict):
         return JSONResponse(
             status_code=400,
-            content={'error': 'Request body is not valid JSON'},
+            content={'error': 'Request body must be a JSON object'},
         )
     command = str(body.get('command') or '').lower().strip()
-    try: request.state.webhook_command = command
-    except Exception: pass
+    request.state.webhook_command = command
     assert_scope(auth_info, str(body.get('project') or 'global'))
     handler = DISPATCH.get(command)
 
