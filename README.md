@@ -1,170 +1,160 @@
-<div align="center">
-
-<img src="assets/recall-banner.png" alt="Recall — capture knowledge, recall forever" width="100%" />
-
 # Recall
 
-Stop re-explaining your codebase to Claude every session. **Recall** is a self-hosted
-memory server that lets your whole team's Claude Code instances read and write the
-same knowledge — your conventions, your architecture, your decisions — and recall
-them by meaning, on demand.
+A self-hosted memory server that a team's AI coding agents share.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Self-hosted](https://img.shields.io/badge/Self--hosted-100%25-success)]()
-[![MCP-native](https://img.shields.io/badge/MCP-native-7c3aed)]()
-[![Your data](https://img.shields.io/badge/Your%20data-stays%20yours-0ea5e9)]()
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](setup.py)
+[![CI](https://github.com/gshepptech/recall/actions/workflows/ci.yml/badge.svg)](https://github.com/gshepptech/recall/actions/workflows/ci.yml)
 
-</div>
+Coding agents start every session knowing nothing about your codebase. Recall gives
+them one memory they all share: conventions, decisions, requirements and known errors,
+stored on a server you run. Agents read and write it through MCP tools or plain HTTP.
+The Claude Code plugin briefs each new session from that memory and updates it every
+time someone commits.
 
----
+## Features
 
-## Why Recall
+- **Session-start brief.** A SessionStart hook loads the current repo's top facts and
+  the team's global conventions into every new Claude Code session.
+- **Incremental indexing on commit.** `/recall:track` installs git `post-commit` and
+  `post-merge` hooks. Each commit runs a headless pass over the changed files and saves
+  the facts it can back with at least two `file:line` citations.
+- **Deep codebase reads.** `/recall:scour` splits a repo into slices, reads each one with
+  a reader agent, checks the results with a skeptic agent, and asks you about anything
+  ambiguous before it writes.
+- **Retrieval confidence and a relevance floor.** Every fact stores a confidence score
+  that lowers its rank. Search results carry a `relevance` value, and matches below
+  `RECALL_MIN_RELEVANCE` (or a per-request `min_relevance`) are suppressed instead of
+  returned as if they were good.
+- **Token-safe connect.** You save the token once with a silent terminal prompt, and
+  `/recall:connect` reads it from `~/.recall/token`. The token never enters the chat.
+- **Shared, scoped memory.** Projects keep facts apart, and a `global` project holds
+  team-wide conventions. Tokens carry a role (owner, admin, developer, viewer) and can be
+  limited to one project.
+- **Hybrid search, local if you want it.** Search combines full-text and vector
+  similarity, then adjusts for age and use. It runs keyword-only with no embedder, or
+  semantic with a bundled local Ollama model, so no data leaves your network.
 
-Most AI memory tools make one agent remember one session a little better. Recall solves the
-harder problem:
+## Quick start
 
-> **Many people. Many agents. Many projects. One shared, governed memory pool — on infrastructure you own.**
+You need Docker with Compose v2.
 
-| | Recall |
-|---|---|
-| 🧠 **Team-shared** | One pool, role-scoped (owner / admin / dev / viewer) |
-| 🗂️ **Multi-project** | Isolated per-project memory + a `global` scope for org-wide conventions |
-| 🔒 **Self-hosted** | Postgres + an optional **local** embedder. Your data never has to leave your network |
-| 🔌 **MCP-native** | Claude calls `recall_*` tools itself — no copy-paste, no ceremony |
-| 🔍 **`/recall:scour`** | Deliberately reads a codebase and writes evidence-backed facts into memory |
-| 🌅 **Wakes up knowing** | A session-start brief auto-loads this repo's facts + global conventions |
-| 🔁 **Auto-updates** | `/recall:track` once → every commit refreshes shared memory, hands-off |
-| ♻️ **Stays fresh** | Confidence decay + staleness flags so old facts don't quietly become lies |
-
----
-
-## How it works
-
-```
-   teammate's laptop                         your Recall server (one box)
- ┌────────────────────┐    MCP / HTTPS    ┌──────────────────────────────┐
- │   Claude Code      │ ────────────────▶ │  Recall API                    │
- │   (just a token)   │ ◀──────────────── │   ├─ Postgres + pgvector      │
- └────────────────────┘   relevant facts  │   └─ local embedder (Ollama)  │
-                                           └──────────────────────────────┘
-```
-
-Teammates install nothing heavy — their machine just holds a token. The database and the
-embedder live on **your** server. A weak laptop still gets full semantic recall, because
-none of the work happens there.
-
----
-
-## Quickstart
-
-### 1 — Stand up the server (one command)
 ```bash
 git clone https://github.com/gshepptech/recall && cd recall
-./install.sh
+./install.sh                 # writes .env with random secrets, starts Postgres and Recall
+./install.sh embedder        # optional: local Ollama embedder for semantic search
+./install.sh add-user alice developer   # mint a token for a teammate
 ```
-`install.sh` generates secrets, builds, and launches the whole stack (Postgres + Recall), then
-prints your owner token. Add semantic search anytime — `./install.sh embedder` pulls a local
-model (zero egress). Expose to the team: `cloudflared tunnel --url http://localhost:8000`.
 
-### 2 — Add a teammate
-Admin mints a token:
+`install.sh` prints the owner token when the server is up at `http://localhost:8000`.
+
+Each person then connects Claude Code. First, in a terminal, save the server URL and
+token. The token prompt does not echo:
+
 ```bash
-./install.sh add-user alice developer
+read -rp 'Recall URL (http://host:8000): ' U; read -rsp 'Recall token: ' T; echo; \
+mkdir -p ~/.recall; printf 'RECALL_URL=%s\nRECALL_TOKEN=%s\n' "$U" "$T" > ~/.recall/token; \
+chmod 600 ~/.recall/token; unset T
 ```
-Teammate installs the plugin + connects, inside Claude Code:
+
+Then, inside Claude Code:
+
 ```
 /plugin marketplace add gshepptech/recall
 /plugin install recall@recall
-```
-Then save creds in your terminal (token read **silently**, never in chat) and run `/recall:connect` —
-steps in **[docs/TEAM-SETUP.md](docs/TEAM-SETUP.md)**. Restart Claude Code — tools + memory brief load.
-
-> 👥 Full join guide: **[docs/TEAM-SETUP.md](docs/TEAM-SETUP.md)** (~2 minutes).
-
-### 3 — Just talk
-```
-"Remember in Recall that we always return Result types, never throw across boundaries."
-"What did we decide about the auth flow?"
-```
-Claude calls `recall_save_memory` / `recall_search` itself. No commands to memorize.
-
----
-
-## ⭐ The headline feature: `/recall:scour`
-
-<div align="center"><img src="assets/scour-pipeline.svg" alt="The /recall:scour pipeline" width="100%" /></div>
-
-A blank-slate memory is only as good as what you feed it. `/recall:scour` reads a repository
-**like a senior engineer who's lived in it for months** — then writes high-signal, cited
-facts into Recall. It does **not** glance.
-
-- **Behavior is truth, comments are not.** Every convention is derived from what the code
-  *does* — comments are read only to flag drift.
-- **Evidence or it's not a fact.** Each convention cites **≥2 `file:line`** instances.
-- **Traces real flows** end-to-end; reads whole files, never excerpts.
-- **Asks you when it's unsure** instead of guessing intent.
-- **Adversarially verified** — a skeptic pass hunts counter-examples and kills weak facts.
-- **Provenance + freshness** — every fact is stamped with the git SHA it was learned at.
-
-```bash
-/recall:scour . --scope auto --depth exhaustive
+/recall:connect
 ```
 
-> Ships as a Claude Code plugin in [`plugin/`](plugin/): `/recall:scour`, `/recall:connect`,
-> `/recall:track` (auto-refresh on every commit), a **SessionStart auto-brief**, and the
-> `recall-reader` + `recall-skeptic` agents that enforce the quality bar above.
+Restart Claude Code. The `recall_*` tools and the session brief load from the next
+session. Run `/recall:scour .` once to seed a repo and `/recall:track` to keep it
+current. After that, ask in plain language: "remember that we return Result types at
+service boundaries", or "what did we decide about the auth flow?"
 
----
+The full walkthrough, including roles and troubleshooting, is in
+[docs/setup.md](docs/setup.md).
 
-## Search modes — pick your privacy
+## How it works
 
-| Mode | Semantic? | Data leaves your box? | Setup |
-|---|---|---|---|
-| **Keyword** | — | **Never** | nothing |
-| **Local embedder** (Ollama) | ✅ by meaning | **Never** | bundled in `docker-compose.yml` |
-| **Cloud embedder** (OpenAI) | ✅ by meaning | fact text → OpenAI | one API key |
+```mermaid
+flowchart LR
+    subgraph Clients
+        CC["Claude Code + Recall plugin"]
+        Hook["git hooks<br/>(/recall:track)"]
+        Other["Other agents, scripts, curl"]
+    end
 
-Local embedding is a tiny ~274 MB model on CPU — **no GPU required**, runs on the same box.
+    subgraph Server["Recall server (FastAPI)"]
+        MCP["/mcp<br/>MCP tools"]
+        HTTP["/webhook/recall<br/>JSON commands"]
+        UI["/ web UI"]
+        Auth["Token auth<br/>role + project scope"]
+        Cmd["Command handlers"]
+        Rank["Ranking<br/>FTS + vector, recency,<br/>use, confidence"]
+    end
 
----
+    Store[("SQLite + sqlite-vec<br/>or PostgreSQL + pgvector")]
+    Embed["Embedder<br/>OpenAI-compatible API<br/>(Ollama or hosted)"]
 
-## What Recall remembers
+    CC --> MCP
+    CC -- session brief --> HTTP
+    Hook -- headless claude -p --> MCP
+    Other --> HTTP
+    MCP --> Auth
+    HTTP --> Auth
+    UI --> Auth
+    Auth --> Cmd --> Rank --> Store
+    Cmd --> Embed
+```
 
-| Type | For |
-|---|---|
-| `note` | Conventions & "how we write code here" (and anti-patterns) |
-| `decision` | Choices the team committed to, and why |
-| `requirement` | How a feature is supposed to work |
-| `prompt` | Reusable, named style rules |
-| `conversation` | Session diaries (optional server-side auto-capture) |
+The server is one Python process. Agents call it over MCP (Streamable HTTP at `/mcp`)
+or send JSON commands to `/webhook/recall`. Each request is checked against a token's
+role and optional project scope before it reaches a handler. Saves embed the title
+and content when an embedder is configured. Searches run full-text and vector queries,
+merge them, then re-rank by age, access count and stored confidence. If the embedder
+is missing or fails, search falls back to keyword-only and the response is marked
+`degraded`.
 
----
+SQLite is the default for a single machine. The Docker stack uses PostgreSQL with
+pgvector so several agents can write at once. See [docs/architecture.md](docs/architecture.md)
+for the data model and request flow.
 
 ## Configuration
 
-Copy `.env.example` → `.env`. The essentials:
+Settings are read from `.env` (see [.env.example](.env.example)). The main ones:
 
-| Variable | Purpose |
-|---|---|
-| `RECALL_TOKEN` | Owner bearer token |
-| `RECALL_DB_BACKEND` | `sqlite` (solo) or `postgres` (team) |
-| `RECALL_EMBEDDING_DIM` | Vector size — **must match your embedder** (nomic `768`, OpenAI-large `3072`) |
-| `RECALL_EMBEDDING_API_BASE` | Point at a local embedder for zero-egress semantic search |
+| Variable | Default | Purpose |
+|---|---|---|
+| `RECALL_TOKEN` | none | Owner token. Only this token can mint other tokens. |
+| `RECALL_HOST` / `RECALL_PORT` | `0.0.0.0` / `8000` | Bind address and port |
+| `RECALL_DB_BACKEND` | `sqlite` | `sqlite` or `postgres` |
+| `RECALL_DB_PATH` | `./recall.db` | SQLite file |
+| `RECALL_DB_HOST`, `RECALL_DB_PORT`, `RECALL_DB_NAME`, `RECALL_DB_USER`, `RECALL_DB_PASSWORD` | `localhost`, `5432`, `recall`, `recall`, empty | PostgreSQL connection |
+| `RECALL_EMBEDDING_API_BASE` | `https://api.openai.com/v1` | Any OpenAI-compatible embeddings endpoint, such as Ollama at `http://ollama:11434/v1` |
+| `RECALL_EMBEDDING_API_KEY` | none | Embedder key. Leave it empty for keyword-only search. |
+| `RECALL_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model name |
+| `RECALL_EMBEDDING_DIM` | `1536` | Vector size. It must match the model, for example 768 for `nomic-embed-text`. |
+| `RECALL_MIN_RELEVANCE` | `0.0` | Relevance floor from 0 to 1. `0` turns it off. |
+| `RECALL_DECAY_DAYS` | `30` | Half-life, in days, of the recency boost |
+| `RECALL_FREQUENCY_WEIGHT` | `0.1` | How much access count lifts a result |
 
----
+The HTTP commands and their fields are listed in [docs/commands.md](docs/commands.md).
 
-## Deploy notes
+## Development
 
-- **Solo / trial:** SQLite, keyword-only — zero dependencies.
-- **Team:** Postgres + pgvector (bundled compose) + a Cloudflare tunnel or Tailscale.
-- **Tiny footprint:** a ~€6/mo VPS or any always-on machine runs this comfortably.
+```bash
+python3 -m venv .venv && . .venv/bin/activate
+pip install -e ".[postgres,dev]"
+cp .env.example .env          # set RECALL_TOKEN
+python -m recall              # SQLite server on :8000; first run asks two setup questions
 
----
+pytest                        # unit and integration tests (each suite starts its own server)
+ruff check .
+python -m recall.tests.eval_retrieval   # recall@k and relevance-floor sweep on a labelled corpus
+```
 
-## Credits
+The Claude Code plugin lives in [`plugin/`](plugin/): slash commands in `commands/`, the
+reader and skeptic agents in `agents/`, and the hook scripts in `scripts/`.
 
-Recall is a fork of [**Zikra**](https://github.com/getzikra/zikra) (MIT) by Mukarram, extended
-with a config-driven embedder, a bundled local-embedding option, and the `/recall:scour`
-codebase-comprehension engine. Huge thanks to the original project.
+## License
 
-Licensed under [MIT](LICENSE).
+MIT. Recall began from the open-source Zikra memory server; see [LICENSE](LICENSE).
