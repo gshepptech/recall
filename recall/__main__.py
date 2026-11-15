@@ -1,8 +1,6 @@
 import argparse
-import filecmp
 import logging
 import os
-import shutil
 import subprocess
 import sys
 import threading
@@ -52,11 +50,8 @@ def _check_for_updates():
 # ── Update subcommand ─────────────────────────────────────────────────────────
 
 def run_update():
-    """Pull latest from GitHub, refresh pip install, update hooks."""
+    """Pull the latest code, reinstall the package, and restart the service if it runs under systemd."""
     install_dir = Path(__file__).parent.parent
-    hooks_dir = install_dir / 'hooks'
-    claude_dir = Path.home() / '.claude'
-    token_file = Path.home() / '.recall' / 'token'
 
     print('Updating Recall...\n')
 
@@ -70,8 +65,8 @@ def run_update():
             raise RuntimeError(result.stderr.strip())
         print(result.stdout.strip() or 'Already up to date.')
     except Exception as e:
-        print(f'Cannot update \u2014 not installed via git.')
-        print(f'Download latest from https://github.com/gshepptech/recall')
+        print('Cannot update \u2014 not installed via git.')
+        print('Download the latest release from https://github.com/gshepptech/recall')
         print(f'({e})')
         sys.exit(1)
 
@@ -98,46 +93,13 @@ def run_update():
     except Exception:
         new_sha = 'unknown'
 
-    # 4 — update hooks in ~/.claude/ that differ from repo hooks/
-    updated_hooks = []
-    if hooks_dir.exists() and token_file.exists():
-        creds: dict = {}
-        for line in token_file.read_text().splitlines():
-            if '=' in line:
-                k, _, v = line.partition('=')
-                creds[k.strip()] = v.strip()
-
-        backup_dir = claude_dir / 'recall_backups'
-        backup_dir.mkdir(parents=True, exist_ok=True)
-
-        for hook_file in sorted(hooks_dir.iterdir()):
-            if hook_file.name.startswith('__') or hook_file.suffix == '.pyc':
-                continue
-            dest = claude_dir / hook_file.name
-            if not dest.exists():
-                continue
-            if not filecmp.cmp(str(hook_file), str(dest), shallow=False):
-                shutil.copy2(str(dest), str(backup_dir / (hook_file.name + '.bak')))
-                content = hook_file.read_text()
-                content = content.replace('RECALL_URL_PLACEHOLDER',
-                                          creds.get('RECALL_URL', ''))
-                content = content.replace('RECALL_TOKEN_PLACEHOLDER',
-                                          creds.get('RECALL_TOKEN', ''))
-                content = content.replace('DEFAULT_PROJECT_PLACEHOLDER',
-                                          creds.get('RECALL_PROJECT', 'global'))
-                dest.write_text(content)
-                print(f'  \u2713 updated ~/.claude/{hook_file.name}')
-                updated_hooks.append(hook_file.name)
-
-    # 5 — Docker: print rebuild instructions, do not rebuild automatically
-    in_docker = Path('/.dockerenv').exists()
-    restart_status = ''
-    if in_docker:
-        print('\nRunning inside Docker \u2014 to apply update:')
-        print('  docker compose -f docker-compose.local.yml up -d --build')
+    # 4 — Docker: print rebuild instructions, do not rebuild automatically
+    if Path('/.dockerenv').exists():
+        print('\nRunning inside Docker \u2014 to apply the update, run on the host:')
+        print('  docker compose up -d --build')
         restart_status = 'manual step required'
     else:
-        # 6 — systemd: restart if the service is active
+        # 5 — systemd: restart if the service is active
         try:
             check = subprocess.run(
                 ['systemctl', '--user', 'is-active', 'recall'],
@@ -153,10 +115,8 @@ def run_update():
         except Exception:
             restart_status = 'not running as systemd service'
 
-    # 7 — summary
-    print(f'\nZikra updated to {new_sha}')
-    print(f'Hooks updated:   {", ".join(updated_hooks) if updated_hooks else "none"}')
-    print(f'Restart:         {restart_status}')
+    print(f'\nRecall updated to {new_sha}')
+    print(f'Restart: {restart_status}')
 
 
 # ── Server entry point ────────────────────────────────────────────────────────
@@ -167,13 +127,18 @@ def main():
         run_update()
         return
 
-    parser = argparse.ArgumentParser(description='Recall \u2014 local MCP memory server')
+    parser = argparse.ArgumentParser(
+        prog='recall',
+        description='Recall: a self-hosted shared memory server for AI coding agents.',
+        epilog='Run "recall update" to pull the latest version. '
+               'Settings are read from .env; see .env.example.',
+    )
     parser.add_argument('--host', default=None,
-                        help='Host to bind (default: RECALL_HOST or 0.0.0.0)')
+                        help='address to bind (default: RECALL_HOST or 0.0.0.0)')
     parser.add_argument('--port', type=int, default=None,
-                        help='Port to listen on (default: RECALL_PORT or 8000)')
+                        help='port to listen on (default: RECALL_PORT or 8000)')
     parser.add_argument('--no-onboarding', action='store_true',
-                        help='Skip interactive onboarding wizard on startup')
+                        help='skip the interactive first-run setup (read settings from the environment)')
     args = parser.parse_args()
 
     if args.no_onboarding:
