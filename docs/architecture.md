@@ -1,166 +1,175 @@
-# Recall Architecture
+# Recall architecture
 
-Recall is an open-source memory layer for AI agents, built for teams that need
-shared project context with real governance. It gives Claude Code, Gemini CLI,
-Codex, Cursor, custom agents, and direct HTTP clients the same searchable memory
-pool while preserving project boundaries through role-based tokens and optional
-project scoping.
+Recall has two parts: a memory server and a Claude Code plugin that feeds it and reads
+from it. This page describes how each works and how data moves between them.
 
-The key design choice is simple: Recall is not only a personal memory cache. It is
-project memory infrastructure. Memories are typed, scoped, ranked, linked,
-auditable, and reusable across agents, people, projects, and machines.
-
-## System diagram
+## Overview
 
 ```mermaid
 flowchart TB
-    subgraph People["People and Teams"]
-        Owner["Owner / Admin"]
-        Dev["Developer"]
-        Viewer["Viewer / Stakeholder"]
+    subgraph Client["Developer machine"]
+        CC["Claude Code"]
+        Brief["SessionStart hook<br/>recall-session-brief.py"]
+        Git["git post-commit / post-merge<br/>recall-incremental"]
+        Cred["~/.recall/token"]
     end
 
-    subgraph Agents["Any Agent or Tool"]
-        Claude["Claude Code / Claude Desktop"]
-        Codex["Codex CLI"]
-        Gemini["Gemini CLI"]
-        Cursor["Cursor / VS Code"]
-        Custom["Custom Agent / curl"]
+    subgraph Server["Recall server"]
+        MCP["POST /mcp<br/>MCP Streamable HTTP"]
+        Webhook["POST /webhook/recall<br/>JSON commands"]
+        UI["GET /<br/>web UI + /api/ui/*"]
+        Gate["Auth: bearer token<br/>role check, project scope"]
+        Dispatch["Command dispatcher<br/>(canonical names + aliases)"]
+        Search["Search + ranking"]
+        Save["Save + wikilink graph"]
     end
 
-    subgraph Entrypoints["Recall Protocol Surface"]
-        MCP["POST /mcp<br/>MCP Streamable HTTP<br/>Tools API"]
-        Webhook["POST /webhook/recall<br/>Command API"]
-        UI["GET /<br/>Web UI + JSON UI API"]
-    end
+    DB[("SQLite + sqlite-vec<br/>or PostgreSQL + pgvector")]
+    Emb["Embeddings endpoint<br/>(OpenAI-compatible)"]
 
-    subgraph Guard["Governance Gate"]
-        Auth["Bearer token auth"]
-        RBAC["Role permissions<br/>owner / admin / developer / viewer"]
-        Scope["Project scope<br/>optional per-token gate"]
-    end
-
-    subgraph Core["Recall FastAPI Core"]
-        Router["Command dispatcher<br/>aliases normalize agent calls"]
-        Embed["Embedding service<br/>OpenAI-compatible or keyword fallback"]
-        Rank["Hybrid retrieval + ranking<br/>semantic + FTS + recency + usage + confidence"]
-        Links["Memory graph builder<br/>wikilinks + tags + modules + time"]
-        Runs["Run and token telemetry"]
-        Hygiene["Hygiene reports<br/>stale and orphan review"]
-    end
-
-    subgraph Store["Storage Layer"]
-        SQLite["SQLite + sqlite-vec<br/>local and single-user default"]
-        Postgres["PostgreSQL + pgvector<br/>team and concurrent-write backend"]
-        Tables["memories<br/>memory_links<br/>prompt_runs<br/>pending_runs<br/>error_log<br/>access_tokens<br/>token_hits"]
-    end
-
-    Owner --> Auth
-    Dev --> Auth
-    Viewer --> Auth
-    Claude --> MCP
-    Cursor --> MCP
-    Codex --> Webhook
-    Gemini --> Webhook
-    Custom --> Webhook
-    UI --> Auth
-    MCP --> Auth
-    Webhook --> Auth
-    Auth --> RBAC --> Scope --> Router
-    Router --> Embed
-    Router --> Rank
-    Router --> Links
-    Router --> Runs
-    Router --> Hygiene
-    Embed --> SQLite
-    Rank --> SQLite
-    Links --> SQLite
-    Runs --> SQLite
-    Hygiene --> SQLite
-    SQLite -. optional backend switch .-> Postgres
-    SQLite --> Tables
-    Postgres --> Tables
+    Cred --> Brief
+    Cred --> CC
+    CC --> MCP
+    Brief --> Webhook
+    Git -- "claude -p" --> MCP
+    MCP --> Gate
+    Webhook --> Gate
+    UI --> Gate
+    Gate --> Dispatch
+    Dispatch --> Search
+    Dispatch --> Save
+    Search --> DB
+    Save --> DB
+    Search --> Emb
+    Save --> Emb
 ```
 
-## What makes the architecture different
+## Server
 
-### 1. Governed project memory
+The server is a FastAPI app started with `python -m recall`. It runs schema migrations at
+startup, then serves three surfaces:
 
-Recall treats memory as a governed project resource. Every memory can carry a
-project, module, memory type, tags, creator, resolution state, confidence score,
-and access count. Tokens carry roles, and tokens can also be limited to one
-project. That lets a team use one server without turning every agent into a
-global administrator.
+| Surface | Path | Used by |
+|---|---|---|
+| MCP tools | `POST /mcp` (Streamable HTTP); `/mcp/sse` and `/mcp/messages` for older SSE clients | Claude Code and other MCP clients |
+| Command API | `POST /webhook/recall` | The session brief, scripts, `curl`, non-MCP agents |
+| Web UI | `GET /` and `GET /api/ui/*` | People browsing memory in a browser |
+| Health | `GET /health` | Docker health check, `install.sh` |
 
-### 2. Agent-agnostic by design
+Both the MCP tools and the command API call the same handlers in `recall/commands/`.
+The command API also accepts aliases such as `find`, `remember` and `store`, so agents
+that guess a command name still reach the right handler. [commands.md](commands.md)
+lists every command.
 
-Agents can call Recall through two compatible surfaces:
+### Auth
 
-- MCP tools at `POST /mcp` for MCP-native clients.
-- Direct command calls at `POST /webhook/recall` for CLI hooks, custom agents, and
-  simple HTTP clients.
+Every request carries a bearer token. The owner token comes from `RECALL_TOKEN` in the
+environment. All other tokens live in the `access_tokens` table and are created with
+`create_token`, which only the owner can call. Each token has a role:
 
-The command layer accepts aliases such as `find`, `recall`, `remember`, `save`,
-and `store`, which makes Recall forgiving when different agents use slightly
-different language.
+| Role | Adds |
+|---|---|
+| viewer | Search and read |
+| developer | Save memories, prompts and requirements; log runs and errors |
+| admin | Delete memories, read the schema, debug output |
+| owner | Mint tokens |
 
-### 3. Typed memory, not raw chat history
+A token can also carry a `project_scope`. Requests for any other project are rejected
+with `403 token_scope_mismatch`, and lookups by id are limited to that project.
 
-Recall stores distinct memory types:
+### Storage
 
-- `decision` for architecture and product decisions.
-- `requirement` for requested work.
-- `prompt` for reusable runbooks.
-- `conversation` for session summaries and handoffs.
-- `error` for failures and debugging context.
-- `note` for general project knowledge.
+Two backends implement the same functions in `recall/db.py`:
 
-This gives agents a better retrieval surface than a flat transcript pile.
+- **SQLite** (default). FTS5 handles keyword search and `sqlite-vec` handles vectors.
+  Good for one person on one machine.
+- **PostgreSQL + pgvector** (`RECALL_DB_BACKEND=postgres`). `tsvector` handles keyword
+  search, and an HNSW index on a `halfvec` column handles vectors. The Docker stack uses
+  this backend so several agents can write at once.
 
-### 4. Search that degrades gracefully
+The PostgreSQL vector column is sized by `RECALL_EMBEDDING_DIM` and must match the
+embedding model. `./install.sh embedder` resizes it to 768 for `nomic-embed-text`.
 
-When embeddings are available, Recall performs semantic retrieval and combines it
-with keyword search. When embeddings are unavailable, it still works as a
-keyword-backed memory server. Ranking is adjusted by age, access frequency, and
-confidence so frequently useful memories stay visible without deleting older
-context.
+### Embeddings
 
-### 5. Team workflow loop
+`recall/embed.py` calls any OpenAI-compatible `/embeddings` endpoint, such as hosted
+OpenAI or a local Ollama. If no key is set, or the call fails, Recall stores the memory
+without a vector and search runs keyword-only. Search responses then include
+`"degraded": true` and a warning.
 
-```mermaid
-sequenceDiagram
-    participant Stakeholder
-    participant AgentA as Research / Planning Agent
-    participant Recall
-    participant Owner
-    participant AgentB as Coding Agent
-    participant UI as Web UI
+### Search and ranking
 
-    Stakeholder->>AgentA: Describe need or product request
-    AgentA->>Recall: save_requirement(project, title, content)
-    Owner->>Recall: list_requirements(project)
-    Owner->>Recall: promote_requirement(id, promote_to="prompt" or "decision")
-    AgentB->>Recall: search(project, query)
-    Recall-->>AgentB: ranked requirements, decisions, prompts, prior errors
-    AgentB->>Recall: log_run(project, status, tokens, summary)
-    AgentB->>Recall: save_memory(type="decision" or "error")
-    UI->>Recall: browse graph, runs, prompts, requirements, token usage
-```
+1. The query is embedded if an embedder is configured.
+2. Vector and full-text candidates are fetched for the project (`global` searches every
+   project) and merged into a raw relevance score between 0 and 1. That score is returned
+   as `relevance`.
+3. Results below the relevance floor are dropped. The floor is `RECALL_MIN_RELEVANCE`
+   (off by default) or a per-request `min_relevance`. The response reports how many
+   matches it dropped in `suppressed_low_relevance`, so an agent can tell "nothing
+   relevant" apart from "nothing stored".
+4. The remaining results are re-ranked: raw score × recency decay (half-life
+   `RECALL_DECAY_DAYS`) × an access-count boost × the memory's stored confidence.
+5. Snippets are trimmed to fit `max_tokens`.
 
-## Runtime components
+Confidence is a number from 0 to 1 that the writer sends with `confidence` on a save. It
+is stored as `confidence_score` and kept on later saves that do not send one.
+`/recall:scour` sets it from the reader's confidence after the skeptic pass, so facts that
+barely survived rank below well-supported ones.
 
-| Component | Role |
-| --- | --- |
-| FastAPI server | Owns HTTP routes, lifecycle, UI endpoints, webhook dispatch, MCP transport, and health checks. |
-| MCP server | Exposes Recall tools over Streamable HTTP at `/mcp`; legacy SSE endpoints are retained for compatibility. |
-| Command modules | Small command handlers for search, save, prompts, requirements, run logs, errors, schema, hygiene, and token creation. |
-| Auth layer | Verifies bearer tokens, maps roles, and enforces project scope. |
-| Embedding layer | Uses an OpenAI-compatible embeddings endpoint when configured; falls back to keyword-only mode when not. |
-| Scoring layer | Re-ranks search results with recency decay, access frequency, and confidence. |
-| SQLite backend | Default local backend using FTS5 and sqlite-vec. |
-| Postgres backend | Optional team backend using asyncpg and pgvector. |
-| Web UI | Browser interface for memories, graph view, prompts, requirements, runs, users, and token usage. |
-| Plugin | The Claude Code plugin: `/recall:connect`, `/recall:scour`, `/recall:track`, and a SessionStart memory brief. |
+`python -m recall.tests.eval_retrieval` seeds a labelled corpus into a temporary server
+and reports recall@k, precision@k and a sweep of relevance floors. Use it to check a
+ranking change before merging it.
+
+### Saves and links
+
+A save upserts on `(title, memory_type, project)`, so saving the same title again updates
+the memory rather than adding a copy. Title and content are embedded together. Any
+`[[Title]]` in the content becomes an edge in `memory_links`, which the web UI draws as a
+graph and `get_memory` returns as backlinks.
+
+## Claude Code plugin
+
+The plugin in `plugin/` adds three slash commands, two agents and one hook.
+
+### `/recall:connect`
+
+Reads `RECALL_URL` and `RECALL_TOKEN` from `~/.recall/token` and runs
+`claude mcp add --transport http recall "$RECALL_URL/mcp"` at user scope. The token is
+passed by variable, so it never appears in the conversation. User scope matters because
+the commit hooks run `claude -p` outside any project.
+
+### SessionStart brief
+
+`plugin/scripts/recall-session-brief.py` runs when a session starts. It takes the repo's
+directory name as the project, asks `/webhook/recall` for the top global and project
+memories, and prints a short Markdown brief that Claude Code adds to the context. It
+exits silently on any error, so a down server never blocks a session.
+
+### `/recall:scour`
+
+![The /recall:scour pipeline](../assets/scour-pipeline.svg)
+
+A deliberate, multi-agent read of a codebase:
+
+1. **Map.** Record the commit SHA and cut the repo into slices.
+2. **Deep-read.** One `recall-reader` agent per slice returns candidate facts. Each
+   convention needs at least two `file:line` citations.
+3. **Synthesize.** Merge, corroborate across slices, and check Recall for near-duplicates.
+4. **Clarify.** Ask the user about anything ambiguous instead of guessing.
+5. **Verify.** A `recall-skeptic` agent tries to refute each important fact against the
+   code. Facts that fail are dropped or downgraded.
+6. **Write.** Save survivors with their citations, the SHA, a `source:scour` tag and a
+   confidence score.
+
+### `/recall:track`
+
+Copies `recall-incremental` to `~/.recall/bin/` and appends a marked block to the repo's
+`post-commit` and `post-merge` hooks. It respects `core.hooksPath` and leaves any existing
+hook content alone. On each commit or merge, the script lists changed source files and
+runs a headless `claude -p` with a strict prompt. That run reads only those files, keeps
+only facts with two or more citations, skips anything ambiguous, and saves through the
+MCP tools. It runs in the background and logs to `~/.recall/incremental.log`, so a commit
+never waits on it.
 
 ## Data model
 
@@ -174,68 +183,52 @@ erDiagram
         text title
         text content_md
         text tags
-        text resolution
         text created_by
         real confidence_score
         int access_count
-        int searchable
-        int resolved
         int pending_review
         text created_at
         text updated_at
     }
-
     memory_links {
         text from_id FK
         text to_id FK
         text anchor
     }
-
     prompt_runs {
         text id PK
         text project
         text runner
         text prompt_id
-        text prompt_name
         text status
         text output_summary
         int tokens_input
         int tokens_output
-        int tokens_cache_read
-        int tokens_cache_creation
         real cost_usd
         text created_at
     }
-
     pending_runs {
         text runner
         text project
         text prompt_id
         text created_at
     }
-
     error_log {
         text id PK
         text project
-        text runner
         text error_type
         text message
-        text stack_trace
         text context_md
         text created_at
     }
-
     access_tokens {
         text id PK
         text token
         text person_name
-        text token_name
         text role
         text project_scope
         int active
-        text created_at
     }
-
     token_hits {
         text id PK
         text label
@@ -247,82 +240,10 @@ erDiagram
     memories ||--o{ memory_links : "links to"
     memories ||--o{ prompt_runs : "prompt_id"
     memories ||--o{ pending_runs : "pending prompt"
-    access_tokens ||--o{ token_hits : "records usage"
+    access_tokens ||--o{ token_hits : "usage"
 ```
 
-## Request flow
-
-### Search
-
-1. Agent calls `recall_search` over MCP or sends `{"command": "search"}` to the
-   webhook.
-2. Recall authenticates the token, checks the caller role, and applies project
-   scope.
-3. The query is embedded if an embeddings endpoint is configured.
-4. Recall retrieves candidates using vector search and full-text search.
-5. Results are re-ranked with recency, access count, and confidence.
-6. The response is clipped to the requested token budget.
-
-### Save
-
-1. Agent sends a typed memory with `title`, `project`, `content_md`, and optional
-   metadata.
-2. Recall embeds title plus content when embeddings are available.
-3. The backend inserts or updates the unique `(title, memory_type, project)` row.
-4. Full-text and vector indexes are refreshed.
-5. `[[wikilinks]]` inside the content become graph edges in `memory_links`.
-
-### Prompt run
-
-1. Agent fetches a saved prompt.
-2. Recall records a pending prompt/run handshake for the caller's runner and
-   project.
-3. Agent completes the task and calls `log_run`.
-4. Recall links the run back to the prompt and records status, token counts,
-   cache usage, cost, and summary.
-
-## Deployment profiles
-
-| Profile | Best for | Backend | Notes |
-| --- | --- | --- | --- |
-| Local | One developer, one machine, quick start | SQLite + sqlite-vec | Default install path. |
-| Shared server | Small team or public tunnel | SQLite or Postgres | Use token roles and project scopes. |
-| Team backend | Multiple agents and concurrent writes | PostgreSQL + pgvector | Recommended for production teams. |
-
-## Architecture review
-
-Recall's strongest architectural asset is that it sits at the right abstraction
-layer. It is lower than an agent framework and higher than a plain vector store:
-agents do not need to know about schemas, indexes, rankings, prompt/run
-handshakes, or project gates. They only need to call memory tools.
-
-The second strength is protocol flexibility. MCP gives Recall a standard
-integration path for modern AI clients, while the webhook gives every shell hook,
-automation script, and custom agent a stable fallback.
-
-The third strength is that project management concepts are first-class enough to
-matter. Requirements, decisions, prompts, runs, token usage, stale memory, and
-graph links are all represented in the system. That is the foundation for the
-"governed project memory" category.
-
-## Design direction
-
-The clearest next step is to keep pushing Recall toward team-grade memory
-operations:
-
-- First-class team and workspace records above projects.
-- Project dashboards that show requirements, decisions, prompts, runs, and stale
-  memory in one view.
-- Richer approval states for requirement-to-decision and requirement-to-prompt
-  workflows.
-- Public demo data that lets new users understand the system in one minute.
-
-## Positioning summary
-
-Most memory projects answer: "How does one agent remember a user?"
-
-Recall answers: "How does a team govern project memory across many agents?"
-
-That is the sharper category. The architecture already supports it: protocol
-agnostic entrypoints, typed memories, project scopes, RBAC, run telemetry,
-requirements, prompts, graph links, and a self-hosted storage layer.
+`prompt_runs` and `pending_runs` link a prompt fetched with `get_prompt` to the run an
+agent logs afterwards with `log_run`, so the web UI can show which prompts were run, by
+whom, and at what token cost. Migrations live in `recall/migrations/` for SQLite and in
+`recall/db_postgres.py` for PostgreSQL.
