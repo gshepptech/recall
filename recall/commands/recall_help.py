@@ -30,7 +30,7 @@ async def cmd_recall_help(body: dict) -> dict:
         },
         {
             'command': 'hygiene_report',
-            'aliases': ['orphan_report', 'stale_report'],
+            'aliases': [],
             'description': 'Find orphaned or stale memories with no retrievals and no incoming wikilinks.',
             'required': [],
             'optional': ['project', 'stale_days'],
