@@ -7,6 +7,7 @@ Run:
 import os
 import socket
 import subprocess
+import sys
 import time
 
 import httpx
@@ -29,16 +30,22 @@ OWNER_HEADERS = {'Authorization': f'Bearer {OWNER_TOKEN}', 'Content-Type': 'appl
 
 @pytest.fixture(scope='module')
 def server():
-    env = {**os.environ, 'RECALL_TOKEN': OWNER_TOKEN, 'RECALL_DB': TEST_DB, 'DB_BACKEND': 'sqlite'}
+    env = {
+        **os.environ,
+        'RECALL_TOKEN': OWNER_TOKEN,
+        'RECALL_DB_PATH': TEST_DB,
+        'RECALL_SKIP_ONBOARDING': '1',
+        'DB_BACKEND': 'sqlite',
+    }
     proc = subprocess.Popen(
-        ['python', '-m', 'recall', '--port', str(PORT)],
+        [sys.executable, '-m', 'recall', '--port', str(PORT)],
         env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )
     deadline = time.time() + 10
     while time.time() < deadline:
         try:
-            httpx.get(f'http://localhost:{PORT}/health', timeout=1)
-            break
+            if httpx.get(f'http://localhost:{PORT}/health', timeout=1).status_code == 200:
+                break
         except Exception:
             time.sleep(0.2)
     yield proc

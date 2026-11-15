@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 import httpx
+import pytest
 
 
 def _find_free_port() -> int:
@@ -87,16 +88,13 @@ class ServerContext:
         return self.client.get(f"{self.base}{path}", headers=req_headers)
 
 
-def run_test(test_fn):
-    ctx = ServerContext()
-    ctx.start()
-    try:
-        test_fn(ctx)
-        print(f"PASS: {test_fn.__name__}")
-    except Exception as exc:
-        print(f"FAIL: {test_fn.__name__} - {exc}")
-    finally:
-        ctx.stop()
+@pytest.fixture
+def ctx():
+    """A fresh server with its own SQLite database for each test."""
+    server = ServerContext()
+    server.start()
+    yield server
+    server.stop()
 
 
 def test_get_memory_enforces_project_scope_by_id(ctx: ServerContext):
@@ -346,52 +344,3 @@ def test_mcp_enforces_project_scoped_tokens(ctx: ServerContext):
     found = ctx.post("get_memory", {"project": "alpha", "title": "Implicit scoped project"})
     assert found.status_code == 200, found.text
     assert found.json()["project"] == "alpha", found.json()
-
-
-TESTS = [
-    test_get_memory_enforces_project_scope_by_id,
-    test_create_token_rejects_owner_and_arbitrary_roles,
-    test_log_error_requires_message_field,
-    test_promote_requirement_scopes_title_lookup_by_project,
-    test_search_limit_is_clamped_for_negative_and_huge_values,
-    test_bad_json_returns_400,
-    test_mcp_sse_advertises_correct_messages_path,
-    test_viewer_token_can_read_but_cannot_write,
-    test_mcp_enforces_project_scoped_tokens,
-]
-
-
-def run_all() -> bool:
-    results = []
-    for test_fn in TESTS:
-        ctx = ServerContext()
-        ctx.start()
-        try:
-            test_fn(ctx)
-            results.append((test_fn.__name__, "PASS", None))
-        except Exception as exc:
-            results.append((test_fn.__name__, "FAIL", str(exc)))
-        finally:
-            ctx.stop()
-
-    print()
-    print(f"{'#':<4} {'Test':<55} {'Result'}")
-    print("-" * 80)
-    passed = 0
-    for idx, (name, status, err) in enumerate(results, 1):
-        print(f"{idx:<4} {name:<55} {status}")
-        if err:
-            print(f"     Error: {err}")
-        if status == "PASS":
-            passed += 1
-    print()
-    print(f"Results: {passed}/{len(results)} passed")
-    return passed == len(results)
-
-
-def test_suite():
-    assert run_all(), "One or more integration tests failed"
-
-
-if __name__ == "__main__":
-    sys.exit(0 if run_all() else 1)
