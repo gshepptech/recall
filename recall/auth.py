@@ -41,7 +41,7 @@ async def verify_auth(request: Request) -> dict:
         return info
 
     # DB token lookup — branch on backend
-    backend = os.getenv('DB_BACKEND', 'sqlite').lower()
+    backend = os.getenv('RECALL_DB_BACKEND', 'sqlite').lower()
     if backend == 'postgres':
         from recall.db_postgres import get_pg_pool, verify_token_pg
         pool = get_pg_pool()

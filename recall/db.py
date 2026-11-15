@@ -76,7 +76,7 @@ def init_db() -> tuple:
     Safe to call multiple times — skips setup if already initialised.
     """
     global _db, _is_pg
-    backend = os.getenv('DB_BACKEND', 'sqlite').lower()
+    backend = os.getenv('RECALL_DB_BACKEND', 'sqlite').lower()
 
     if backend == 'postgres':
         _is_pg = True

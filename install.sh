@@ -23,10 +23,10 @@ RECALL_TOKEN=$(RAND)
 POSTGRES_USER=recall
 POSTGRES_PASSWORD=$(RAND)
 POSTGRES_DB=recall
-DB_BACKEND=postgres
+RECALL_DB_BACKEND=postgres
 RECALL_PROJECT=global
 # semantic search off by default (keyword-only, zero egress). Enable with: ./install.sh embedder
-RECALL_EMBED_DIM=1536
+RECALL_EMBEDDING_DIM=1536
 EOF
 }
 
@@ -77,12 +77,12 @@ case "$cmd" in
        CREATE INDEX idx_memories_embedding ON memories USING hnsw (embedding halfvec_cosine_ops);" \
       || { echo "✗ column migration failed — semantic NOT enabled"; exit 1; }
     # enable semantic in .env (idempotent) and restart the server
-    grep -q '^OPENAI_API_BASE=' .env || cat >> .env <<EOF
-OPENAI_API_BASE=http://ollama:11434/v1
-OPENAI_API_KEY=local
+    grep -q '^RECALL_EMBEDDING_API_BASE=' .env || cat >> .env <<EOF
+RECALL_EMBEDDING_API_BASE=http://ollama:11434/v1
+RECALL_EMBEDDING_API_KEY=local
 RECALL_EMBEDDING_MODEL=nomic-embed-text
 EOF
-    grep -q '^RECALL_EMBED_DIM=' .env && { sed -i.bak 's/^RECALL_EMBED_DIM=.*/RECALL_EMBED_DIM=768/' .env && rm -f .env.bak; } || echo 'RECALL_EMBED_DIM=768' >> .env
+    grep -q '^RECALL_EMBEDDING_DIM=' .env && { sed -i.bak 's/^RECALL_EMBEDDING_DIM=.*/RECALL_EMBEDDING_DIM=768/' .env && rm -f .env.bak; } || echo 'RECALL_EMBEDDING_DIM=768' >> .env
     docker compose up -d
     echo "✓ semantic search enabled (nomic-embed-text · 768d · local · zero egress)."
     echo "  Existing entries have no vectors yet — RE-SAVE them to embed (re-run your publish; it's idempotent)."

@@ -35,7 +35,7 @@ def server():
         'RECALL_TOKEN': OWNER_TOKEN,
         'RECALL_DB_PATH': TEST_DB,
         'RECALL_SKIP_ONBOARDING': '1',
-        'DB_BACKEND': 'sqlite',
+        'RECALL_DB_BACKEND': 'sqlite',
     }
     proc = subprocess.Popen(
         [sys.executable, '-m', 'recall', '--port', str(PORT)],

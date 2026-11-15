@@ -4,8 +4,8 @@ Retrieval eval harness — measure search quality so ranking changes are provabl
 Boots a throwaway Recall server against a temp SQLite DB, seeds a small labeled corpus, then
 reports recall@k / precision@k over a set of labeled queries and a relevance-floor sweep.
 
-Runs in keyword-only (FTS) mode when OPENAI_API_KEY is unset, so it is deterministic and
-CI-friendly. Set OPENAI_API_KEY to evaluate the full hybrid (semantic + keyword) path.
+Runs in keyword-only (FTS) mode when RECALL_EMBEDDING_API_KEY is unset, so it is deterministic and
+CI-friendly. Set RECALL_EMBEDDING_API_KEY to evaluate the full hybrid (semantic + keyword) path.
 
 Usage:  python3 -m recall.tests.eval_retrieval
 Extend: add rows to CORPUS and QUERIES below — this is scaffolding, not a fixed benchmark.
@@ -71,7 +71,7 @@ def run_eval() -> bool:
     for title, body in CORPUS:
         post('save_memory', {'title': title, 'content_md': body})
 
-    print(f'\nRetrieval eval — k={K}, mode={"hybrid" if os.getenv("OPENAI_API_KEY") else "keyword-only (FTS)"}')
+    print(f'\nRetrieval eval — k={K}, mode={"hybrid" if os.getenv("RECALL_EMBEDDING_API_KEY") else "keyword-only (FTS)"}')
     print('-' * 68)
 
     recalls, precisions = [], []
@@ -88,11 +88,11 @@ def run_eval() -> bool:
     mean_p = sum(precisions) / len(precisions)
     print('-' * 68)
     print(f'  mean recall@{K}={mean_r:.3f}   mean precision@{K}={mean_p:.3f}')
-    if not os.getenv('OPENAI_API_KEY'):
+    if not os.getenv('RECALL_EMBEDDING_API_KEY'):
         print('  note: keyword-only mode cannot match morphological variants '
               '(e.g. "postgres" -> "postgresql", "vector" -> "pgvector").')
         print('        those MISSes are exactly what the semantic half of hybrid search recovers — '
-              'set OPENAI_API_KEY to see recall rise.')
+              'set RECALL_EMBEDDING_API_KEY to see recall rise.')
 
     # Floor sweep — how many results survive each relevance floor for one query.
     print('\nRelevance-floor sweep  (query: "jwt auth token")')
@@ -115,7 +115,7 @@ def main() -> bool:
         'RECALL_TOKEN': 'test-token-lite',
         'RECALL_PORT': str(_PORT),
         'RECALL_DB_PATH': TEST_DB,
-        'OPENAI_API_KEY': os.getenv('OPENAI_API_KEY', ''),
+        'RECALL_EMBEDDING_API_KEY': os.getenv('RECALL_EMBEDDING_API_KEY', ''),
         'RECALL_SKIP_ONBOARDING': '1',
     })
     proc = subprocess.Popen(

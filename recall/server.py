@@ -58,7 +58,7 @@ load_dotenv()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    backend = os.getenv('DB_BACKEND', 'sqlite').lower()
+    backend = os.getenv('RECALL_DB_BACKEND', 'sqlite').lower()
     if backend == 'sqlite':
         db_path = os.getenv('RECALL_DB_PATH', './recall.db')
         db_conn = await open_aio_db(db_path)
@@ -146,7 +146,7 @@ async def _cmd_debug_protocol(_body: dict) -> dict:
         'backend':        'postgres' if is_postgres() else 'sqlite',
         'db_path':        os.getenv('RECALL_DB_PATH', './recall.db') if not is_postgres() else None,
         'memory_count':   count,
-        'openai_key_set': bool(os.getenv('OPENAI_API_KEY')),
+        'embedding_key_set': bool(os.getenv('RECALL_EMBEDDING_API_KEY')),
         'version':        __version__,
     }
 
@@ -275,7 +275,7 @@ async def health():
     result = {
         'status':  'ok',
         'version': __version__,
-        'backend': os.getenv('DB_BACKEND', 'sqlite'),
+        'backend': os.getenv('RECALL_DB_BACKEND', 'sqlite'),
     }
     if latest:
         result['latest_version'] = latest

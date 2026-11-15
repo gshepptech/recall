@@ -147,9 +147,9 @@ Copy `.env.example` → `.env`. The essentials:
 | Variable | Purpose |
 |---|---|
 | `RECALL_TOKEN` | Owner bearer token |
-| `DB_BACKEND` | `sqlite` (solo) or `postgres` (team) |
-| `RECALL_EMBED_DIM` | Vector size — **must match your embedder** (nomic `768`, OpenAI-large `3072`) |
-| `OPENAI_API_BASE` | Point at a local embedder for zero-egress semantic search |
+| `RECALL_DB_BACKEND` | `sqlite` (solo) or `postgres` (team) |
+| `RECALL_EMBEDDING_DIM` | Vector size — **must match your embedder** (nomic `768`, OpenAI-large `3072`) |
+| `RECALL_EMBEDDING_API_BASE` | Point at a local embedder for zero-egress semantic search |
 
 ---
 

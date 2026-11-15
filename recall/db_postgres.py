@@ -1,15 +1,15 @@
 """PostgreSQL backend for Recall using asyncpg + pgvector.
 
-Activated when DB_BACKEND=postgres. Requires:
+Activated when RECALL_DB_BACKEND=postgres. Requires:
   - PostgreSQL with pgvector extension
   - asyncpg Python package  (pip install asyncpg)
 
 Env vars:
-  DB_HOST      (default: localhost)
-  DB_PORT      (default: 5432)
-  DB_NAME      (default: recall)
-  DB_USER      (default: postgres)
-  DB_PASSWORD  (default: '')
+  RECALL_DB_HOST      (default: localhost)
+  RECALL_DB_PORT      (default: 5432)
+  RECALL_DB_NAME      (default: recall)
+  RECALL_DB_USER      (default: postgres)
+  RECALL_DB_PASSWORD  (default: '')
 """
 
 import json
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 _pg_pool: Optional['asyncpg.Pool'] = None
 
-EMBED_DIM = int(os.getenv('RECALL_EMBED_DIM', '1536'))
+EMBED_DIM = int(os.getenv('RECALL_EMBEDDING_DIM', '1536'))
 
 # ── Schema DDL ────────────────────────────────────────────────────────────────
 
@@ -153,11 +153,11 @@ async def init_pg() -> 'asyncpg.Pool':
             "Run: pip install asyncpg"
         )
 
-    host = os.getenv('DB_HOST', 'localhost')
-    port = int(os.getenv('DB_PORT', '5432'))
-    dbname = os.getenv('DB_NAME', 'recall')
-    user = os.getenv('DB_USER', 'recall')
-    password = os.getenv('DB_PASSWORD', '')
+    host = os.getenv('RECALL_DB_HOST', 'localhost')
+    port = int(os.getenv('RECALL_DB_PORT', '5432'))
+    dbname = os.getenv('RECALL_DB_NAME', 'recall')
+    user = os.getenv('RECALL_DB_USER', 'recall')
+    password = os.getenv('RECALL_DB_PASSWORD', '')
 
     _pg_pool = await asyncpg.create_pool(
         host=host, port=port, database=dbname,

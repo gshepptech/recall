@@ -77,7 +77,7 @@ def run_update():
 
     # 2 — pip install
     load_dotenv(install_dir / '.env')
-    backend = os.getenv('DB_BACKEND', 'sqlite').lower()
+    backend = os.getenv('RECALL_DB_BACKEND', 'sqlite').lower()
     pip_arg = '-e .[postgres]' if backend == 'postgres' else '-e .'
     pip_result = subprocess.run(
         [sys.executable, '-m', 'pip', 'install'] + pip_arg.split(),
@@ -195,11 +195,11 @@ def main():
 
     host = args.host or os.getenv('RECALL_HOST', '0.0.0.0')
     port = args.port or int(os.getenv('RECALL_PORT', '8000'))
-    backend = os.getenv('DB_BACKEND', 'sqlite').lower()
+    backend = os.getenv('RECALL_DB_BACKEND', 'sqlite').lower()
 
     if backend not in ('sqlite', 'postgres'):
         print(
-            f'ERROR: DB_BACKEND={backend!r} is not valid. Use: sqlite or postgres',
+            f'ERROR: RECALL_DB_BACKEND={backend!r} is not valid. Use: sqlite or postgres',
             file=sys.stderr,
         )
         sys.exit(1)

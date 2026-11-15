@@ -67,7 +67,7 @@ def search_semantic():
     r = post('search', {'query': 'docker kubernetes orchestration', 'limit': 5})
     assert 'results' in r
     scores = [x['score'] for x in r['results']]
-    if os.getenv('OPENAI_API_KEY'):
+    if os.getenv('RECALL_EMBEDDING_API_KEY'):
         assert any(s > 0.25 for s in scores), f'expected score > 0.25, got scores {scores}'
     else:
         assert any(s != 0 for s in scores), f'expected non-zero score in FTS-only mode, got scores {scores}'
@@ -316,7 +316,7 @@ def run_all():
         'RECALL_TOKEN': 'test-token-lite',
         'RECALL_PORT': str(_PORT),
         'RECALL_DB_PATH': TEST_DB,
-        'OPENAI_API_KEY': os.getenv('OPENAI_API_KEY', ''),
+        'RECALL_EMBEDDING_API_KEY': os.getenv('RECALL_EMBEDDING_API_KEY', ''),
     })
 
     env['RECALL_SKIP_ONBOARDING'] = '1'

@@ -4,20 +4,18 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-_ZERO = [0.0] * 1536
-
 
 async def embed(text: str) -> list:
     # Read env vars here (not at import time) so load_dotenv() has already run
-    api_key = os.getenv('OPENAI_API_KEY', '')
-    api_base = os.getenv('OPENAI_API_BASE', 'https://api.openai.com/v1')
+    api_key = os.getenv('RECALL_EMBEDDING_API_KEY', '')
+    api_base = os.getenv('RECALL_EMBEDDING_API_BASE', 'https://api.openai.com/v1')
     model = os.getenv('RECALL_EMBEDDING_MODEL', 'text-embedding-3-small')
 
     if not text or not text.strip():
-        return [0.0] * int(os.getenv('RECALL_EMBED_DIM', '1536'))
+        return [0.0] * int(os.getenv('RECALL_EMBEDDING_DIM', '1536'))
 
     if not api_key:
-        logger.warning('OPENAI_API_KEY not set — semantic search unavailable, falling back to keyword-only')
+        logger.warning('RECALL_EMBEDDING_API_KEY not set — semantic search unavailable, falling back to keyword-only')
         return None
 
     try:

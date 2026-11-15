@@ -33,7 +33,7 @@ class ServerContext:
                 "RECALL_PORT": str(self.port),
                 "RECALL_DB_PATH": self.db_path,
                 "RECALL_SKIP_ONBOARDING": "1",
-                "DB_BACKEND": "sqlite",
+                "RECALL_DB_BACKEND": "sqlite",
             }
         )
         log_handle = open(self.log_path, "w", encoding="utf-8")

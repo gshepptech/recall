@@ -11,12 +11,12 @@ services:
     container_name: recall_server
     env_file: .env
     environment:
-      DB_BACKEND: postgres
-      DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_NAME: ${POSTGRES_DB:-recall}
-      DB_USER: ${POSTGRES_USER:-recall}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      RECALL_DB_BACKEND: postgres
+      RECALL_DB_HOST: postgres
+      RECALL_DB_PORT: "5432"
+      RECALL_DB_NAME: ${POSTGRES_DB:-recall}
+      RECALL_DB_USER: ${POSTGRES_USER:-recall}
+      RECALL_DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       RECALL_HOST: 0.0.0.0
       RECALL_PORT: "8000"
     depends_on:
@@ -46,8 +46,8 @@ services:
 
   # ── Local embedder (opt-in: `--profile embedder`) — semantic search, zero egress ──
   # After it's up:  docker exec recall_ollama ollama pull nomic-embed-text
-  # Then set in .env: OPENAI_API_BASE=http://ollama:11434/v1, OPENAI_API_KEY=local,
-  #                   RECALL_EMBEDDING_MODEL=nomic-embed-text, RECALL_EMBED_DIM=768
+  # Then set in .env: RECALL_EMBEDDING_API_BASE=http://ollama:11434/v1, RECALL_EMBEDDING_API_KEY=local,
+  #                   RECALL_EMBEDDING_MODEL=nomic-embed-text, RECALL_EMBEDDING_DIM=768
   ollama:
     image: ollama/ollama:latest
     container_name: recall_ollama

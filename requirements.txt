@@ -9,5 +9,5 @@ python-dotenv>=1.0.0
 mcp[cli]>=1.0.0,<2
 starlette>=0.37.0
 
-# optional: only needed for DB_BACKEND=postgres
+# optional: only needed for RECALL_DB_BACKEND=postgres
 # asyncpg>=0.29.0
