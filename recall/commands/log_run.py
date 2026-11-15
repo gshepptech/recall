@@ -2,9 +2,9 @@ from recall.db import record_run, new_id, consume_pending_run
 
 
 async def cmd_log_run(body: dict) -> dict:
-    # v1.0.6 server-side handshake: if the caller didn't supply an explicit
+    # Server-side handshake: if the caller didn't supply an explicit
     # prompt_id, consume the pending entry for (runner, project) from get_prompt.
-    # Explicit prompt_id always wins for backwards compatibility.
+    # An explicit prompt_id always wins.
     if not body.get('prompt_id'):
         runner = body.get('runner')
         project = body.get('project', 'global')

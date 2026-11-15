@@ -109,7 +109,7 @@ async def mcp_streamable_http(request: Request):
     return await handle_streamable_http(request)
 
 
-# ── MCP — SSE legacy transport (deprecated, kept for backwards compat) ────────
+# ── MCP — SSE transport for older MCP clients ─────────────────────────────────
 # Mount handles /mcp/sse and /mcp/messages only.
 app.mount('/mcp', build_mcp_app())
 
@@ -612,29 +612,6 @@ async def ui_requirements(request: Request):
     limit   = min(int(request.query_params.get('limit', '100')), 500)
     rows = await list_by_memory_type('requirement', project, limit, status=status)
     return {'requirements': _prep_memories(rows), 'count': len(rows)}
-
-
-@app.get('/api/ui/run-history')
-async def ui_run_history(request: Request):
-    """
-    DEPRECATED (kept for v1.0.4 clients). Use /api/ui/runs instead.
-    Returns conversation-type memories filtered by prompt name in title/tags.
-    """
-    auth_info   = await verify_auth(request)
-    project     = request.query_params.get('project') or 'global'
-    assert_scope(auth_info, project)
-    prompt_name = (request.query_params.get('prompt') or '').lower().strip()
-    limit       = min(int(request.query_params.get('limit', '30')), 100)
-
-    rows = await list_by_memory_type('conversation', project, limit)
-    if prompt_name:
-        def _matches(r: dict) -> bool:
-            title = (r.get('title') or '').lower()
-            tags  = str(r.get('tags') or '').lower()
-            return title.startswith('diary:') or prompt_name in title or prompt_name in tags
-        rows = [r for r in rows if _matches(r)]
-
-    return {'runs': _prep_memories(rows), 'count': len(rows)}
 
 
 @app.get('/api/ui/runs')

@@ -28,7 +28,7 @@ mcp.json example:
 
 X-Recall-Runner identifies the calling host/agent. The server injects it into
 tool arguments for `recall_get_prompt` and `recall_log_run` so the prompt_id <->
-run handshake works automatically (v1.0.6+).
+run handshake works automatically.
 """
 
 import json
@@ -73,7 +73,7 @@ _mcp_session_scope: ContextVar[str | None] = ContextVar('_mcp_session_scope', de
 _SESSION_ROLES: dict[str, str] = {}
 _SESSION_SCOPES: dict[str, str | None] = {}
 
-# v1.0.6: per-connection runner (from X-Recall-Runner header), injected into
+# Per-connection runner (from X-Recall-Runner header), injected into
 # tool arguments for get_prompt/log_run so the server-side handshake links runs.
 _mcp_session_runner: ContextVar[str] = ContextVar('_mcp_session_runner', default='')
 _SESSION_RUNNERS: dict[str, str] = {}
@@ -385,7 +385,7 @@ async def _run_tool(name: str, arguments: dict, role: str) -> list[types.TextCon
             })
         arguments = {**(arguments or {}), 'project': project_scope}
 
-    # v1.0.6: inject runner from X-Recall-Runner header for the two commands
+    # Inject runner from X-Recall-Runner header for the two commands
     # that participate in the prompt_id <-> run handshake. The caller never has
     # to know its own hostname — it comes from the mcp.json headers block.
     runner = _mcp_session_runner.get()

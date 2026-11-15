@@ -646,8 +646,7 @@ async def record_run(data: dict, run_id: str) -> None:
 
 
 async def record_pending_run(runner: str, prompt_id: str, project: str) -> None:
-    """Record that `runner` just fetched `prompt_id`. UPSERT — last write wins.
-    v1.0.6: server-side handshake, replaces the dead /tmp/recall_prompt_id rendezvous."""
+    """Record that `runner` just fetched `prompt_id`. UPSERT — last write wins."""
     if _is_pg:
         from recall.db_postgres import record_pending_run_pg, get_pg_pool
         await record_pending_run_pg(get_pg_pool(), runner, prompt_id, project)

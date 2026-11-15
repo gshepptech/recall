@@ -128,7 +128,7 @@ def log_run_plain():
 
 
 def log_run_auto_links_prompt_id():
-    """v1.0.6 server-side handshake: get_prompt(runner=X) records pending_runs,
+    """Server-side handshake: get_prompt(runner=X) records pending_runs,
     and the next log_run(runner=X) auto-links prompt_id without the client
     ever having to know the UUID."""
     # Save a prompt to fetch

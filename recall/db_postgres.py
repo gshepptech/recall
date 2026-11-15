@@ -178,7 +178,7 @@ async def init_pg() -> 'asyncpg.Pool':
             "ALTER TABLE prompt_runs ADD COLUMN IF NOT EXISTS tokens_cache_creation INTEGER NULL",
             "CREATE INDEX IF NOT EXISTS idx_prompt_runs_prompt_id ON prompt_runs(prompt_id)",
             "CREATE INDEX IF NOT EXISTS idx_prompt_runs_prompt_name ON prompt_runs(prompt_name)",
-            # v1.0.6: server-side handshake for prompt_id <-> run linkage
+            # Server-side handshake for prompt_id <-> run linkage
             """CREATE TABLE IF NOT EXISTS pending_runs (
                 runner     TEXT NOT NULL,
                 project    TEXT NOT NULL DEFAULT 'global',
@@ -186,7 +186,7 @@ async def init_pg() -> 'asyncpg.Pool':
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 PRIMARY KEY (runner, project)
             )""",
-            # v1.0.7: wikilink edges for [[title]] references
+            # Wikilink edges for [[title]] references
             """CREATE TABLE IF NOT EXISTS memory_links (
                 from_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
                 to_id   TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
@@ -194,7 +194,7 @@ async def init_pg() -> 'asyncpg.Pool':
                 PRIMARY KEY (from_id, to_id)
             )""",
             "CREATE INDEX IF NOT EXISTS idx_memory_links_to ON memory_links(to_id)",
-            # v1.0.10: per-token usage tracking (append-only)
+            # Per-token usage tracking (append-only)
             """CREATE TABLE IF NOT EXISTS token_hits (
                 id      TEXT PRIMARY KEY,
                 label   TEXT NOT NULL,
@@ -203,7 +203,7 @@ async def init_pg() -> 'asyncpg.Pool':
             )""",
             "CREATE INDEX IF NOT EXISTS idx_token_hits_label_ts ON token_hits (label, ts DESC)",
             "CREATE INDEX IF NOT EXISTS idx_token_hits_ts ON token_hits (ts DESC)",
-            # v1.0.10: per-project token scoping (null = unrestricted)
+            # Per-project token scoping (null = unrestricted)
             "ALTER TABLE access_tokens ADD COLUMN IF NOT EXISTS project_scope TEXT NULL",
         ]
         for stmt in _migrations:
@@ -597,7 +597,7 @@ async def log_run_pg(pool, data: dict, run_id: str) -> None:
 
 
 async def record_pending_run_pg(pool, runner: str, prompt_id: str, project: str) -> None:
-    """v1.0.6 handshake: remember that `runner` just fetched `prompt_id`."""
+    """Handshake: remember that `runner` just fetched `prompt_id`."""
     async with pool.acquire() as conn:
         await conn.execute("""
             INSERT INTO pending_runs (runner, project, prompt_id) VALUES ($1,$2,$3)

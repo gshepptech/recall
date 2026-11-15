@@ -1,5 +1,5 @@
 VERSION = 5
-DESCRIPTION = "prompt_runs: add prompt_id + cache token columns for v1.0.5 run tracking"
+DESCRIPTION = "prompt_runs: add prompt_id + cache token columns for run tracking"
 
 SQL = """
 ALTER TABLE prompt_runs ADD COLUMN prompt_id TEXT;

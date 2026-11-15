@@ -33,7 +33,7 @@ async def verify_auth(request: Request) -> dict:
     # Reload env token each call so RECALL_TOKEN changes are picked up at runtime
     env_token = os.getenv('RECALL_TOKEN', RECALL_TOKEN)
 
-    # Env token wins (backwards compat) — owner role, unrestricted scope
+    # The env token is the owner: every command, no project scope
     if env_token and secrets.compare_digest(token.encode(), env_token.encode()):
         info = {'token': token, 'role': 'owner', 'label': 'owner', 'project_scope': None}
         try: request.state.token_label = 'owner'
