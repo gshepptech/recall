@@ -24,7 +24,6 @@ POSTGRES_USER=recall
 POSTGRES_PASSWORD=$(RAND)
 POSTGRES_DB=recall
 RECALL_DB_BACKEND=postgres
-RECALL_PROJECT=global
 # semantic search off by default (keyword-only, zero egress). Enable with: ./install.sh embedder
 RECALL_EMBEDDING_DIM=1536
 EOF
