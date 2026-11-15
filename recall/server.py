@@ -1,3 +1,4 @@
+import json as _json
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -10,7 +11,6 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from dotenv import load_dotenv
 
 from recall.db import (
-    bump_access_count,
     debug_memory_count,
     fetch_links_between,
     fetch_memory_links,
@@ -252,7 +252,6 @@ async def _get_latest_github_version() -> str | None:
         return _github_version_cache['version']
     try:
         import urllib.request
-        import json as _json
         req = urllib.request.Request(
             'https://api.github.com/repos/gshepptech/recall/tags',
             headers={'User-Agent': f'recall-server/{__version__}'},
@@ -491,7 +490,7 @@ async def ui_bootstrap(request: Request):
 async def ui_users():
     """Unauthenticated — returns token labels for the 'Who are you?' picker."""
     labels = await list_token_labels()
-    return JSONResponse([{'label': l} for l in labels])
+    return JSONResponse([{'label': label} for label in labels])
 
 
 @app.get('/api/ui/token-usage')
@@ -524,8 +523,6 @@ async def ui_backlinks(memory_id: str, request: Request):
 
 
 # ── Dedicated UI read endpoints (bypass webhook dispatch) ──────────────────────
-
-import json as _json
 
 def _prep_memories(rows: list) -> list:
     """Attach computed score and parse tags JSON for a list of memory dicts."""

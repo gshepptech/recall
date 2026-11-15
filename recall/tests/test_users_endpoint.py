@@ -92,7 +92,7 @@ class TestUsersEndpoint:
         assert 'alice' in labels
 
     def test_excludes_inactive_tokens(self, server):
-        tok = _create_token(server, 'bob-inactive')
+        _create_token(server, 'bob-inactive')
         # deactivate directly — no deactivate API, so skip if no DB access
         # just assert the label count is deterministic and labels exist
         r = httpx.get(f'{BASE_UI}/users', timeout=10)

@@ -2,7 +2,6 @@ import re
 import secrets
 import sqlite3
 import uuid
-import os
 from pathlib import Path
 
 
@@ -50,7 +49,8 @@ def _validate_project(v: str):
 
 
 def run_onboarding(conn: sqlite3.Connection, port: int = 8000):
-    import sys, os
+    import os
+    import sys
     if os.getenv('RECALL_SKIP_ONBOARDING') or not sys.stdin or not sys.stdin.isatty():
         return
 

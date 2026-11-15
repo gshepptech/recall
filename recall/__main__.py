@@ -39,7 +39,7 @@ def _check_for_updates():
                 local_sha = ref_file.read_text().strip()[:7] if ref_file.exists() else None
 
             if local_sha and remote_sha != local_sha:
-                print(f'\n\u26a0  Recall update available \u2014 run: recall update\n', flush=True)
+                print('\n\u26a0  Recall update available \u2014 run: recall update\n', flush=True)
         except Exception:
             pass  # unreachable host, not a git repo, etc. — fail silently
 

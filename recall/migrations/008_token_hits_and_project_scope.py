@@ -17,7 +17,6 @@ ALTER TABLE access_tokens ADD COLUMN project_scope TEXT;
 
 
 def run(conn):
-    import sqlite3
     conn.execute("""
         CREATE TABLE IF NOT EXISTS token_hits (
             id      TEXT PRIMARY KEY,

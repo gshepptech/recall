@@ -15,7 +15,10 @@ Env vars:
 import json
 import logging
 import os
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    import asyncpg
 
 from recall.config import VECTOR_SEARCH_K
 from recall.scoring import score as rescore

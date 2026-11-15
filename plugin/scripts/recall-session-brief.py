@@ -10,7 +10,11 @@ Reads creds from ~/.recall/token (written by /recall:connect):
     RECALL_URL=http://<server>:8000
     RECALL_TOKEN=<token>
 """
-import os, sys, json, subprocess, urllib.request
+import json
+import os
+import subprocess
+import sys
+import urllib.request
 
 CRED = os.path.expanduser("~/.recall/token")
 if not os.path.exists(CRED):

@@ -4,7 +4,6 @@ import os
 import sys
 import socket
 import httpx
-import json
 
 
 def _find_free_port() -> int:
