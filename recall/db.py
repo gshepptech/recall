@@ -813,16 +813,19 @@ async def fetch_prompt_row(prompt_name: str, project: str = None) -> Optional[di
     return dict(row) if row else None
 
 
-async def delete_memory(memory_id: str) -> Optional[dict]:
-    """Delete a memory by UUID. Returns {id, title, ...} on success, None if not found."""
+async def delete_memory(memory_id: str, project: str = None) -> Optional[dict]:
+    """Delete a memory by UUID, scoped to project when provided.
+    Returns {id, title, ...} on success, None if not found."""
     if _is_pg:
         from recall.db_postgres import delete_memory_pg, get_pg_pool
-        return await delete_memory_pg(get_pg_pool(), memory_id)
+        return await delete_memory_pg(get_pg_pool(), memory_id, project)
 
-    async with _aio_db.execute(
-        "SELECT rowid, id, title, memory_type, project FROM memories WHERE id = ?",
-        [memory_id],
-    ) as cur:
+    sql = "SELECT rowid, id, title, memory_type, project FROM memories WHERE id = ?"
+    params = [memory_id]
+    if project:
+        sql += " AND project = ?"
+        params.append(project)
+    async with _aio_db.execute(sql, params) as cur:
         row = await cur.fetchone()
     if not row:
         return None
@@ -988,16 +991,20 @@ async def list_by_memory_type(memory_type: str, project: str, limit: int,
     return [dict(r) for r in rows]
 
 
-async def change_memory_type(memory_id: str, new_type: str) -> Optional[dict]:
-    """Promote a requirement to a different memory_type. Returns the row or None."""
+async def change_memory_type(memory_id: str, new_type: str,
+                             project: str = None) -> Optional[dict]:
+    """Promote a requirement to a different memory_type, scoped to project when provided.
+    Returns the row or None."""
     if _is_pg:
         from recall.db_postgres import change_memory_type_pg, get_pg_pool
-        return await change_memory_type_pg(get_pg_pool(), memory_id, new_type)
+        return await change_memory_type_pg(get_pg_pool(), memory_id, new_type, project)
 
-    async with _aio_db.execute(
-        "SELECT id, title FROM memories WHERE id = ? AND memory_type = 'requirement'",
-        [memory_id]
-    ) as cur:
+    sql = "SELECT id, title FROM memories WHERE id = ? AND memory_type = 'requirement'"
+    params = [memory_id]
+    if project:
+        sql += " AND project = ?"
+        params.append(project)
+    async with _aio_db.execute(sql, params) as cur:
         row = await cur.fetchone()
     if not row:
         return None

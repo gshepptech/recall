@@ -16,7 +16,7 @@ async def cmd_delete_memory(body: dict) -> dict:
             return {'error': 'Memory not found'}
         memory_id = row['id']
 
-    deleted = await delete_memory(memory_id)
+    deleted = await delete_memory(memory_id, project)
     if not deleted:
         return {'error': 'Memory not found', 'id': memory_id}
 

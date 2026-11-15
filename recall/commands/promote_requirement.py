@@ -8,15 +8,16 @@ async def cmd_promote_requirement(body: dict) -> dict:
     if not req_id and not title:
         return {'error': 'id, requirement_id, or title is required'}
 
+    project = body.get('project') or None
     if not req_id:
-        project = body.get('project', 'global')
+        project = project or 'global'
         found = await fetch_memory(title=title, project=project)
         if not found or found.get('memory_type') != 'requirement':
             return {'error': f'Requirement with title "{title}" not found'}
         req_id = found['id']
 
     promote_to = body.get('promote_to', 'prompt')
-    row = await change_memory_type(req_id, promote_to)
+    row = await change_memory_type(req_id, promote_to, project)
 
     if not row:
         return {'error': 'Requirement not found or already promoted'}

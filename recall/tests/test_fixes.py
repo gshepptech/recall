@@ -124,6 +124,32 @@ def test_get_memory_enforces_project_scope_by_id(ctx: ServerContext):
     assert bad_body == {"error": "Memory not found", "_use_command": "get_memory"}, bad_body
 
 
+def test_delete_and_promote_by_id_respect_project(ctx: ServerContext):
+    memory = ctx.post(
+        "save_memory",
+        {"project": "proj_a", "title": "Delete scoped", "memory_type": "note", "content_md": "a"},
+    ).json()
+    requirement = ctx.post(
+        "save_requirement",
+        {"project": "proj_a", "title": "Promote scoped", "content_md": "a"},
+    ).json()
+
+    wrong_delete = ctx.post("delete_memory", {"project": "proj_b", "id": memory["id"]}).json()
+    assert wrong_delete.get("error") == "Memory not found", wrong_delete
+    wrong_promote = ctx.post(
+        "promote_requirement", {"project": "proj_b", "id": requirement["id"], "promote_to": "decision"}
+    ).json()
+    assert "error" in wrong_promote, wrong_promote
+
+    still_there = ctx.post("get_memory", {"project": "proj_a", "id": memory["id"]}).json()
+    assert still_there.get("id") == memory["id"], still_there
+    still_requirement = ctx.post("get_memory", {"project": "proj_a", "id": requirement["id"]}).json()
+    assert still_requirement.get("memory_type") == "requirement", still_requirement
+
+    right_delete = ctx.post("delete_memory", {"project": "proj_a", "id": memory["id"]}).json()
+    assert right_delete.get("deleted") is True, right_delete
+
+
 def test_create_token_rejects_owner_and_arbitrary_roles(ctx: ServerContext):
     owner = ctx.post("create_token", {"label": "owner-escalation", "role": "owner"})
     assert owner.status_code == 200, owner.text

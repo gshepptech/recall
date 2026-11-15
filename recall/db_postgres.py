@@ -809,12 +809,14 @@ async def fetch_memory_links_pg(pool, memory_id: str) -> dict:
     }
 
 
-async def delete_memory_pg(pool, memory_id: str) -> Optional[dict]:
-    """Delete a memory by UUID. Returns {id, title} on success, None if not found."""
+async def delete_memory_pg(pool, memory_id: str, project: str = None) -> Optional[dict]:
+    """Delete a memory by UUID, scoped to project when provided.
+    Returns {id, title} on success, None if not found."""
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "DELETE FROM memories WHERE id = $1 RETURNING id, title, memory_type, project",
-            memory_id,
+            "DELETE FROM memories WHERE id = $1 AND ($2::text IS NULL OR project = $2) "
+            "RETURNING id, title, memory_type, project",
+            memory_id, project,
         )
     return dict(row) if row else None
 
@@ -896,12 +898,14 @@ async def list_by_type_pg(pool, memory_type: str, project: str, limit: int,
     return [_row_to_dict(r) for r in rows]
 
 
-async def change_memory_type_pg(pool, memory_id: str, new_type: str) -> Optional[dict]:
+async def change_memory_type_pg(pool, memory_id: str, new_type: str,
+                                project: str = None) -> Optional[dict]:
     async with pool.acquire() as conn:
         row = await conn.fetchrow("""
             SELECT id, title FROM memories
             WHERE id = $1 AND memory_type = 'requirement'
-        """, memory_id)
+              AND ($2::text IS NULL OR project = $2)
+        """, memory_id, project)
         if not row:
             return None
         await conn.execute("""
