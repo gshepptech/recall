@@ -22,6 +22,12 @@ def clamp_confidence(value) -> 'float | None':
     return max(0.0, min(1.0, v))
 
 
+def _confidence(mem: dict) -> float:
+    """Stored confidence, treating only a missing value as full confidence (0 is a real score)."""
+    value = mem.get("confidence_score")
+    return 1.0 if value is None else float(value)
+
+
 def compute_score(mem: dict) -> float:
     """
     Absolute memory health score (0–1), independent of search query.
@@ -37,7 +43,7 @@ def compute_score(mem: dict) -> float:
 
     decay = max(0.05, math.exp(-0.693 * age_days / DECAY_DAYS))
     freq  = 1.0 + FREQUENCY_WEIGHT * math.log1p(mem.get("access_count") or 0)
-    conf  = float(mem.get("confidence_score") or 1.0)
+    conf  = _confidence(mem)
     pin   = 1.5 if mem.get("pinned") else 1.0
     return min(1.0, decay * freq * conf * pin)
 
@@ -58,5 +64,5 @@ def score(raw: float, mem: dict) -> float:
 
     decay = max(0.05, math.exp(-0.693 * age_days / DECAY_DAYS))
     freq  = 1.0 + FREQUENCY_WEIGHT * math.log1p(mem.get("access_count") or 0)
-    conf  = float(mem.get("confidence_score") or 1.0)
+    conf  = _confidence(mem)
     return raw * decay * freq * conf
