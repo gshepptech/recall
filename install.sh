@@ -2,7 +2,7 @@
 # Recall one-command installer.
 #   ./install.sh                       bring the whole stack up (generates .env if missing)
 #   ./install.sh embedder              also start local Ollama + pull the model (semantic, zero-egress)
-#   ./install.sh add-user <name> [role]   mint a token and print the teammate's connect command
+#   ./install.sh add-user <name> [role]   mint a token for a teammate
 #   ./install.sh down                  stop the stack
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -85,19 +85,19 @@ EOF
     grep -q '^RECALL_EMBEDDING_DIM=' .env && { sed -i.bak 's/^RECALL_EMBEDDING_DIM=.*/RECALL_EMBEDDING_DIM=768/' .env && rm -f .env.bak; } || echo 'RECALL_EMBEDDING_DIM=768' >> .env
     docker compose up -d
     echo "✓ semantic search enabled (nomic-embed-text · 768d · local · zero egress)."
-    echo "  Existing entries have no vectors yet — RE-SAVE them to embed (re-run your publish; it's idempotent)."
+    echo "  Existing memories have no vectors yet. Save them again to embed them (saves are idempotent)."
     ;;
   add-user)
     name="${2:?usage: ./install.sh add-user <name> [role]}"; role="${3:-developer}"
     resp=$(curl -fsS -X POST "$URL_LOCAL/webhook/recall" \
       -H "Authorization: Bearer $(token)" -H "Content-Type: application/json" \
-      -d "{\"command\":\"create_token\",\"token_name\":\"$name\",\"role\":\"$role\"}")
+      -d "{\"command\":\"create_token\",\"label\":\"$name\",\"role\":\"$role\"}")
     tok=$(printf '%s' "$resp" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('token',''))" 2>/dev/null)
     [[ -z "$tok" ]] && { echo "✗ could not mint token. Response: $resp"; exit 1; }
     echo "✓ token for '$name' ($role): $tok"
     echo
-    echo "  Send them this (swap in your public URL if tunneled):"
-    echo "  claude mcp add --transport http recall $URL_LOCAL/mcp --header \"Authorization: Bearer $tok\""
+    echo "  Send them the token and the server URL over a private channel. They save both"
+    echo "  to ~/.recall/token and run /recall:connect (see docs/setup.md)."
     ;;
   down) docker compose --profile embedder down; echo "✓ stopped." ;;
   *) echo "usage: ./install.sh [up|embedder|add-user <name> [role]|down]"; exit 1 ;;
