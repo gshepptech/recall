@@ -8,7 +8,7 @@ Env vars:
   RECALL_DB_HOST      (default: localhost)
   RECALL_DB_PORT      (default: 5432)
   RECALL_DB_NAME      (default: recall)
-  RECALL_DB_USER      (default: postgres)
+  RECALL_DB_USER      (default: recall)
   RECALL_DB_PASSWORD  (default: '')
 """
 
