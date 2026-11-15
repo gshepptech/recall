@@ -1,5 +1,5 @@
 ---
-description: Register the Recall MCP server from your saved credentials. The token never passes through chat.
+description: Register the Recall MCP server from credentials saved in ~/.recall/token. The token never enters the conversation.
 allowed-tools: Bash
 ---
 

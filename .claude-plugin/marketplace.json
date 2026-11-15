@@ -5,7 +5,7 @@
     {
       "name": "recall",
       "source": "./plugin",
-      "description": "Team memory for Claude Code — connect to a self-hosted Recall server, scour codebases into shared evidence-backed memory, and auto-refresh it on commits."
+      "description": "Shared memory for Claude Code: a session-start brief, in-depth codebase scouring, and incremental indexing on every commit, backed by a self-hosted Recall server."
     }
   ]
 }

@@ -66,7 +66,7 @@ def fmt(items):
         lines.append(f"- **{t}** — {s}" if s else f"- **{t}**")
     return "\n".join(lines)
 
-print("## 📜 Recall — team memory loaded")
+print("## Recall: team memory")
 if proj:
     print(f"\n_Context for **{proj}** + global conventions. Call the `recall_*` tools to recall more, "
           f"or `/recall:scour` to deepen this project's memory._")

@@ -17,7 +17,6 @@ HP="$(git -C "$ROOT" config core.hooksPath 2>/dev/null || true)"
 if [ -n "$HP" ]; then
   case "$HP" in /*) HOOKDIR="$HP" ;; *) HOOKDIR="$ROOT/$HP" ;; esac
 else
-  HOOKDIR="$ROOT/$(git -C "$ROOT" rev-parse --git-path hooks 2>/dev/null | sed "s#^$ROOT/##")"
   HOOKDIR="$(git -C "$ROOT" rev-parse --git-path hooks 2>/dev/null)"
 fi
 mkdir -p "$HOOKDIR"

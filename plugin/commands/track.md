@@ -1,5 +1,5 @@
 ---
-description: Turn on Recall auto-updates for the current repo — installs git commit/merge hooks that incrementally refresh shared memory.
+description: Keep this repo indexed in Recall. Installs git post-commit and post-merge hooks that save facts from each change to shared memory.
 allowed-tools: Bash
 ---
 
@@ -20,7 +20,7 @@ scour (high-confidence facts only; ambiguous ones are skipped for a later manual
 `/recall:scour` review) and updates the **shared** Recall memory the whole team reads.
 
 Requirements:
-- The `recall` MCP must be configured at **user scope** (so headless `claude -p` in the
-  git hook can reach it): `claude mcp add --transport http recall <url> --header "Authorization: Bearer <token>" -s user`
+- The `recall` MCP server must be registered at **user scope** so the headless `claude -p`
+  run inside the git hook can reach it. `/recall:connect` does this.
 - Tell the user it's reliable across terminal-close (fires on commit, not on session end),
   local (no CI), and only captures committed — never half-written — code.

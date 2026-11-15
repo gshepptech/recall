@@ -1,5 +1,5 @@
 ---
-description: Deliberately read a codebase like the back of your hand and write high-signal, evidence-backed facts into Recall team memory.
+description: Read a codebase in depth and save evidence-backed facts, each with file:line citations, to shared Recall memory.
 argument-hint: "[path] [--scope global|project|auto] [--depth standard|exhaustive]"
 allowed-tools: Task, Read, Grep, Glob, Bash, AskUserQuestion, mcp__recall__recall_search, mcp__recall__recall_save_memory, mcp__recall__recall_save_requirement, mcp__recall__recall_save_prompt, mcp__recall__recall_list_requirements
 ---
