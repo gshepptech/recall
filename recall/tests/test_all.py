@@ -309,6 +309,18 @@ TESTS = [
 ]
 
 
+def _wait_until_ready() -> None:
+    deadline = time.time() + 15
+    while time.time() < deadline:
+        try:
+            if httpx.get(f'http://localhost:{_PORT}/health', timeout=1).status_code == 200:
+                return
+        except httpx.HTTPError:
+            pass
+        time.sleep(0.2)
+    raise RuntimeError(f'server did not start on port {_PORT}')
+
+
 def run_all():
     env = os.environ.copy()
     env.update({
@@ -323,10 +335,10 @@ def run_all():
         [sys.executable, '-m', 'recall'],
         env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )
-    time.sleep(2)
 
     results = []
     try:
+        _wait_until_ready()
         for name, fn in TESTS:
             try:
                 fn()

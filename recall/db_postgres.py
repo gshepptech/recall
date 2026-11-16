@@ -862,13 +862,8 @@ async def list_token_labels_pg(pool) -> list:
 
 
 async def list_by_type_pg(pool, memory_type: str, project: str, limit: int,
-                          pending_review=None, status: str = None) -> list:
-    # Map status string to pending_review value
-    if status is not None and pending_review is None:
-        if status == 'pending':
-            pending_review = 1
-        elif status == 'resolved':
-            pending_review = 0
+                          status: str = None) -> list:
+    pending_review = {'pending': 1, 'resolved': 0}.get(status)
     # global → sees ALL memories; specific project → scoped to that project only
     project_param = None if project == 'global' else project
     async with pool.acquire() as conn:

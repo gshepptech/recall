@@ -38,6 +38,7 @@ from contextvars import ContextVar
 
 from mcp.server import Server
 from mcp.server.sse import SseServerTransport
+from fastapi import HTTPException
 from mcp import types
 from starlette.requests import Request
 from starlette.responses import Response
@@ -96,11 +97,11 @@ _PROJECT_SCOPED_TOOLS = {
 
 
 async def _check_auth_request(request: Request) -> dict | None:
-    """Auth check for Starlette Request. Returns auth_info or None."""
+    """Auth info for the request, or None when the token is missing, unknown or unverifiable."""
     try:
         return await verify_auth(request)
-    except Exception as e:
-        logger.warning(f'Auth check error: {e}')
+    except HTTPException as e:
+        logger.warning(f'Auth check failed: {e.status_code} {e.detail}')
         return None
 
 

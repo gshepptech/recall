@@ -830,14 +830,8 @@ async def delete_memory(memory_id: str, project: str = None) -> Optional[dict]:
         return None
     rowid = row['rowid']
     await _aio_db.execute("DELETE FROM memories WHERE id = ?", [memory_id])
-    try:
-        await _aio_db.execute("DELETE FROM memories_vec WHERE rowid = ?", [rowid])
-    except Exception:
-        pass
-    try:
-        await _aio_db.execute("DELETE FROM memories_fts WHERE rowid = ?", [rowid])
-    except Exception:
-        pass
+    await _aio_db.execute("DELETE FROM memories_vec WHERE rowid = ?", [rowid])
+    await _aio_db.execute("DELETE FROM memories_fts WHERE rowid = ?", [rowid])
     await _aio_db.commit()
     return {
         'id': row['id'],
@@ -920,22 +914,14 @@ async def list_token_labels() -> list:
 
 
 async def list_by_memory_type(memory_type: str, project: str, limit: int,
-                              pending_review: Optional[int] = None,
                               status: str = None) -> list:
-    """List memories filtered by type and project.
-    status='pending'|'resolved' maps to pending_review filter.
-    pending_review=1 filters to pending only (legacy param, still accepted).
-    Default (no status, no pending_review): return all."""
+    """List memories of one type. status 'pending' or 'resolved' filters on
+    pending_review; any other value returns both."""
     if _is_pg:
         from recall.db_postgres import list_by_type_pg, get_pg_pool
-        return await list_by_type_pg(get_pg_pool(), memory_type, project, limit, pending_review, status)
+        return await list_by_type_pg(get_pg_pool(), memory_type, project, limit, status)
 
-    # Map status string to pending_review value
-    if status is not None and pending_review is None:
-        if status == 'pending':
-            pending_review = 1
-        elif status == 'resolved':
-            pending_review = 0
+    pending_review = {'pending': 1, 'resolved': 0}.get(status)
 
     # global → sees ALL memories; specific project → scoped to that project only
     if pending_review is not None:
