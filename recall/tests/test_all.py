@@ -27,6 +27,16 @@ def post(command: str, extra: dict = None) -> dict:
     ).json()
 
 
+def run_prompt_ids() -> dict:
+    """Map run id to prompt_id for every logged run in the test project."""
+    r = httpx.get(
+        f'http://localhost:{_PORT}/api/ui/runs',
+        headers=HEADERS, params={'project': 'test', 'limit': 200}, timeout=30,
+    )
+    assert r.status_code == 200, r.text
+    return {run['id']: run['prompt_id'] for run in r.json()['runs']}
+
+
 # ─── Test functions ───────────────────────────────────────────────────────────
 
 def save_memory_plain():
@@ -157,17 +167,10 @@ def log_run_auto_links_prompt_id():
     assert r.get('status') == 'logged', f'expected status=logged, got {r}'
     run_id = r.get('id')
 
-    # Verify linkage via direct DB read (webhook doesn't expose list_runs)
-    import sqlite3
-    conn = sqlite3.connect(TEST_DB)
-    try:
-        row = conn.execute(
-            "SELECT prompt_id FROM prompt_runs WHERE id = ?", (run_id,)
-        ).fetchone()
-    finally:
-        conn.close()
-    assert row is not None, f'run {run_id} not found in prompt_runs'
-    assert row[0] == expected_id, f'expected prompt_id={expected_id}, got {row[0]}'
+    # Verify linkage through the UI runs endpoint, which reads either backend
+    runs = run_prompt_ids()
+    assert run_id in runs, f'run {run_id} not found in prompt_runs'
+    assert runs[run_id] == expected_id, f'expected prompt_id={expected_id}, got {runs[run_id]}'
 
     # Second log_run from same runner (no new get_prompt) must NOT re-link:
     # pending_runs should have been consumed by the first call.
@@ -177,15 +180,9 @@ def log_run_auto_links_prompt_id():
         'output_summary': 'second run, no new fetch',
     })
     run_id_2 = r2.get('id')
-    conn = sqlite3.connect(TEST_DB)
-    try:
-        row2 = conn.execute(
-            "SELECT prompt_id FROM prompt_runs WHERE id = ?", (run_id_2,)
-        ).fetchone()
-    finally:
-        conn.close()
-    assert row2 is not None and row2[0] is None, \
-        f'expected prompt_id=NULL on second run (pending consumed), got {row2}'
+    runs = run_prompt_ids()
+    assert run_id_2 in runs and runs[run_id_2] is None, \
+        f'expected prompt_id=NULL on second run (pending consumed), got {runs.get(run_id_2, "missing")}'
 
 
 def log_run_alias():
