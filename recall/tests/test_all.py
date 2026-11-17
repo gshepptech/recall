@@ -254,6 +254,7 @@ def confidence_persist_and_preserve():
     r = post('search', {'query': tok, 'limit': 5})
     hit = next((x for x in r['results'] if x['title'] == f'{tok} alpha'), None)
     assert hit is not None, f'saved memory not found in {r}'
+    assert 'access_count' in hit, f'search results must carry access_count, got {hit}'
     assert abs(hit['confidence_score'] - 0.2) < 1e-6, f'expected confidence 0.2, got {hit["confidence_score"]}'
     # ...and a re-save WITHOUT confidence must not clobber it (COALESCE preserve).
     post('save_memory', {'title': f'{tok} alpha', 'content_md': 'updated body, no confidence'})
