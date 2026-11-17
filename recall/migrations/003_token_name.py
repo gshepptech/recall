@@ -3,7 +3,7 @@ import sqlite3
 VERSION = 3
 DESCRIPTION = "add token_name column to access_tokens"
 
-SQL = ""  # unused — run() handles this migration
+SQL = ""  # unused; run() handles this migration
 
 
 def run(conn: sqlite3.Connection):
@@ -12,6 +12,6 @@ def run(conn: sqlite3.Connection):
         conn.commit()
     except sqlite3.OperationalError as e:
         if "duplicate column" in str(e).lower():
-            pass  # column already exists — idempotent
+            pass  # column already exists, so this is idempotent
         else:
             raise

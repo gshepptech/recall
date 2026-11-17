@@ -32,10 +32,10 @@ EOF
 wait_health() {
   echo -n "• waiting for Recall to come up"
   for _ in $(seq 1 60); do
-    if curl -fsS "$URL_LOCAL/health" >/dev/null 2>&1; then echo " — up ✓"; return 0; fi
+    if curl -fsS "$URL_LOCAL/health" >/dev/null 2>&1; then echo " ready ✓"; return 0; fi
     echo -n "."; sleep 2
   done
-  echo; echo "✗ server did not become healthy — check: docker compose logs recall"; exit 1
+  echo; echo "✗ server did not become healthy. Check: docker compose logs recall"; exit 1
 }
 
 token() { grep '^RECALL_TOKEN=' .env | cut -d= -f2-; }
@@ -67,14 +67,14 @@ case "$cmd" in
     docker exec recall_ollama ollama pull nomic-embed-text
     # nomic-embed-text = 768 dims. The memories.embedding column was created at the install
     # default (1536), so migrate it to 768. Existing rows have NULL embeddings (the embedder
-    # was off when they were saved), so this drops nothing real — USING NULL is safe.
+    # was off when they were saved), so this drops nothing real and USING NULL is safe.
     echo "• migrating embedding column to 768 dims…"
     docker exec -e PGPASSWORD="${POSTGRES_PASSWORD}" recall_postgres \
       psql -U "${POSTGRES_USER:-recall}" -d "${POSTGRES_DB:-recall}" -v ON_ERROR_STOP=1 -c \
       "DROP INDEX IF EXISTS idx_memories_embedding; \
        ALTER TABLE memories ALTER COLUMN embedding TYPE halfvec(768) USING NULL; \
        CREATE INDEX idx_memories_embedding ON memories USING hnsw (embedding halfvec_cosine_ops);" \
-      || { echo "✗ column migration failed — semantic NOT enabled"; exit 1; }
+      || { echo "✗ column migration failed; semantic search NOT enabled"; exit 1; }
     # enable semantic in .env (idempotent) and restart the server
     grep -q '^RECALL_EMBEDDING_API_BASE=' .env || cat >> .env <<EOF
 RECALL_EMBEDDING_API_BASE=http://ollama:11434/v1

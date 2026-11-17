@@ -1,5 +1,5 @@
 """
-Retrieval eval harness — measure search quality so ranking changes are provable, not vibes.
+Retrieval eval harness: measures search quality so ranking changes are provable.
 
 Boots a throwaway Recall server against a temp SQLite DB, seeds a small labeled corpus, then
 reports recall@k / precision@k over a set of labeled queries and a relevance-floor sweep.
@@ -8,7 +8,7 @@ Runs in keyword-only (FTS) mode when RECALL_EMBEDDING_API_KEY is unset, so it is
 CI-friendly. Set RECALL_EMBEDDING_API_KEY to evaluate the full hybrid (semantic + keyword) path.
 
 Usage:  python3 -m recall.tests.eval_retrieval
-Extend: add rows to CORPUS and QUERIES below — this is scaffolding, not a fixed benchmark.
+Extend: add rows to CORPUS and QUERIES below. This is scaffolding, not a fixed benchmark.
 """
 
 import os
@@ -32,7 +32,7 @@ HEADERS = {'Authorization': 'Bearer test-token-lite', 'Content-Type': 'applicati
 TEST_DB = f'/tmp/recall_eval_{_PORT}.db'
 K = 5
 
-# Labeled corpus — title is the identity we score against.
+# Labeled corpus: the title is the identity we score against.
 CORPUS = [
     ('jwt authentication tokens',   'API auth uses JWT bearer tokens signed per request.'),
     ('postgresql pgvector store',   'Primary datastore is PostgreSQL 15 with the pgvector extension.'),
@@ -71,7 +71,7 @@ def run_eval() -> bool:
     for title, body in CORPUS:
         post('save_memory', {'title': title, 'content_md': body})
 
-    print(f'\nRetrieval eval — k={K}, mode={"hybrid" if os.getenv("RECALL_EMBEDDING_API_KEY") else "keyword-only (FTS)"}')
+    print(f'\nRetrieval eval: k={K}, mode={"hybrid" if os.getenv("RECALL_EMBEDDING_API_KEY") else "keyword-only (FTS)"}')
     print('-' * 68)
 
     recalls, precisions = [], []
@@ -91,10 +91,10 @@ def run_eval() -> bool:
     if not os.getenv('RECALL_EMBEDDING_API_KEY'):
         print('  note: keyword-only mode cannot match morphological variants '
               '(e.g. "postgres" -> "postgresql", "vector" -> "pgvector").')
-        print('        those MISSes are exactly what the semantic half of hybrid search recovers — '
+        print('        those MISSes are exactly what the semantic half of hybrid search recovers; '
               'set RECALL_EMBEDDING_API_KEY to see recall rise.')
 
-    # Floor sweep — how many results survive each relevance floor for one query.
+    # Floor sweep: how many results survive each relevance floor for one query.
     print('\nRelevance-floor sweep  (query: "jwt auth token")')
     print('-' * 68)
     for floor in (0.0, 0.1, 0.25, 0.5, 0.9):
@@ -102,10 +102,10 @@ def run_eval() -> bool:
         print(f'  floor={floor:<4}  returned={r.get("count", 0)}  '
               f'suppressed={r.get("suppressed_low_relevance", 0)}')
 
-    # Sanity gate — the harness measures quality; it is not a strict correctness test.
+    # Sanity gate: the harness measures quality; it is not a strict correctness test.
     # Keyword mode legitimately misses morphological variants, so the bar is a floor, not 1.0.
     ok = mean_r >= 0.6
-    print('\nRESULT:', 'PASS' if ok else f'FAIL — mean recall@{K}={mean_r:.3f} below sanity floor 0.60')
+    print('\nRESULT:', 'PASS' if ok else f'FAIL: mean recall@{K}={mean_r:.3f} below sanity floor 0.60')
     return ok
 
 

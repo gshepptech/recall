@@ -15,7 +15,7 @@ async def embed(text: str) -> list:
         return [0.0] * int(os.getenv('RECALL_EMBEDDING_DIM', '1536'))
 
     if not api_key:
-        logger.warning('RECALL_EMBEDDING_API_KEY not set — semantic search unavailable, falling back to keyword-only')
+        logger.warning('RECALL_EMBEDDING_API_KEY not set; semantic search unavailable, falling back to keyword-only')
         return None
 
     try:

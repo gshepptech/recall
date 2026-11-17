@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
 from recall.db import (
@@ -29,7 +30,7 @@ from recall.db import (
     set_aio_db,
     token_usage_stats,
 )
-from recall.auth import verify_auth, assert_scope, ROLE_PERMISSIONS
+from recall.auth import verify_auth, assert_scope, COMMAND_MIN_ROLE, ROLE_PERMISSIONS
 from recall.commands.search import cmd_search
 from recall.commands.save_memory import cmd_save_memory
 from recall.commands.get_prompt import cmd_get_prompt
@@ -100,7 +101,7 @@ async def record_token_hit(request: Request, call_next):
     return response
 
 
-# ── MCP — Streamable HTTP (primary transport, MCP spec 2025-03-26) ────────────
+# ── MCP: Streamable HTTP (primary transport, MCP spec 2025-03-26) ────────────
 # Registered as a direct FastAPI route so Starlette's Mount never issues a
 # 307 redirect on POST /mcp → /mcp/. MCP clients (claude.ai, Cursor) do not
 # follow 307 redirects on POST, causing silent "couldn't reach MCP server" errors.
@@ -109,33 +110,9 @@ async def mcp_streamable_http(request: Request):
     return await handle_streamable_http(request)
 
 
-# ── MCP — SSE transport for older MCP clients ─────────────────────────────────
+# ── MCP: SSE transport for older MCP clients ─────────────────────────────────
 # Mount handles /mcp/sse and /mcp/messages only.
 app.mount('/mcp', build_mcp_app())
-
-
-# ── Minimum role required per command ─────────────────────────────────────────
-
-COMMAND_MIN_ROLE = {
-    'search':               'viewer',
-    'get_memory':           'viewer',
-    'get_prompt':           'viewer',
-    'list_prompts':         'viewer',
-    'list_requirements':    'viewer',
-    'recall_help':           'viewer',
-    'version':              'viewer',
-    'hygiene_report':       'viewer',
-    'save_memory':          'developer',
-    'save_prompt':          'developer',
-    'save_requirement':     'developer',
-    'promote_requirement':  'developer',
-    'log_run':              'developer',
-    'log_error':            'developer',
-    'get_schema':           'admin',
-    'delete_memory':        'admin',
-    'debug_protocol':       'admin',
-    'create_token':         'owner',
-}
 
 
 # ── debug_protocol handler ────────────────────────────────────────────────────
@@ -292,6 +269,8 @@ async def health():
 
 _UI_HTML = (Path(__file__).with_name('ui.html')).read_text(encoding='utf-8')
 
+app.mount('/static', StaticFiles(directory=Path(__file__).with_name('static')), name='static')
+
 
 @app.get('/', response_class=HTMLResponse)
 async def web_ui():
@@ -334,7 +313,7 @@ def _build_graph_payload(memories: list[dict], wiki_links: list[dict] | None = N
       same project (only if graph mixes projects)             → +1.0
 
     Same-project bonus is suppressed when all memories in the payload
-    share the same project — otherwise every pair would get the bonus
+    share the same project; otherwise every pair would get the bonus
     and scoring collapses into a giant blob.
     """
     max_edges = 320
@@ -366,7 +345,7 @@ def _build_graph_payload(memories: list[dict], wiki_links: list[dict] | None = N
             score = 0.0
             relation = ''
 
-            # Title-in-body references (strongest signal — explicit mention)
+            # Title-in-body references (strongest signal: an explicit mention)
             if left_title and len(left_title) >= 10 and left_title in right_content:
                 score += 3.2
                 relation = 'reference'
@@ -374,7 +353,7 @@ def _build_graph_payload(memories: list[dict], wiki_links: list[dict] | None = N
                 score += 3.2
                 relation = 'reference'
 
-            # Module match — strong signal that two memories concern the same code area
+            # Module match: a strong signal that two memories concern the same code area
             if left.get('module') and left.get('module') == right.get('module'):
                 score += 2.4
                 relation = relation or 'module'
@@ -385,7 +364,7 @@ def _build_graph_payload(memories: list[dict], wiki_links: list[dict] | None = N
                 score += min(1.8, 0.7 * len(shared_tags))
                 relation = relation or 'tag'
 
-            # Temporal proximity — memories created within 6h often concern the
+            # Temporal proximity: memories created within 6h often concern the
             # same task. Useful for auto-logged diary/conversation entries that
             # rarely carry tags but cluster in time.
             if left_ts and right_ts:
@@ -394,12 +373,12 @@ def _build_graph_payload(memories: list[dict], wiki_links: list[dict] | None = N
                     score += 0.9 * (1 - dt / (6 * 3600))
                     relation = relation or 'temporal'
 
-            # Project match — only meaningful when the payload mixes projects
+            # Project match: only meaningful when the payload mixes projects
             if not uniform_project and left.get('project') and left.get('project') == right.get('project'):
                 score += 1.0
                 relation = relation or 'project'
 
-            # Type affinity — weak signal, just tips borderline edges in
+            # Type affinity: a weak signal that tips borderline edges in
             if left.get('memory_type') == right.get('memory_type'):
                 score += 0.25
 
@@ -410,7 +389,7 @@ def _build_graph_payload(memories: list[dict], wiki_links: list[dict] | None = N
     degree_count = {node_id: 0 for node_id in ids}
     edges = []
 
-    # Wikilinks first — explicit [[title]] anchors bypass the score threshold
+    # Wikilinks first: explicit [[title]] anchors bypass the score threshold
     # and degree cap so a bold purple edge always reaches its target. We emit
     # one undirected entry per {from,to} pair so the graph doesn't draw two
     # lines between the same nodes when both memories reference each other.
@@ -478,7 +457,7 @@ def _build_graph_payload(memories: list[dict], wiki_links: list[dict] | None = N
 async def ui_bootstrap(request: Request):
     auth_info = await verify_auth(request)
     scope = auth_info.get('project_scope')
-    # If token is scoped, force the project — do not 403 here (bootstrap is auth-only)
+    # If token is scoped, force the project; do not 403 here (bootstrap is auth-only)
     project = scope or (request.query_params.get('project') or 'global')
     prompts = await list_by_memory_type('prompt', project, 8)
     requirements = await list_by_memory_type('requirement', project, 8)
@@ -495,7 +474,7 @@ async def ui_bootstrap(request: Request):
 
 @app.get('/api/ui/users')
 async def ui_users():
-    """Unauthenticated — returns token labels for the 'Who are you?' picker."""
+    """Unauthenticated. Returns token labels for the 'Who are you?' picker."""
     labels = await list_token_labels()
     return JSONResponse([{'label': label} for label in labels])
 
@@ -523,7 +502,7 @@ async def ui_graph(request: Request):
 
 @app.get('/api/ui/backlinks/{memory_id}')
 async def ui_backlinks(memory_id: str, request: Request):
-    """Return wikilink backlinks for a single memory — used by the graph
+    """Return wikilink backlinks for a single memory, used by the graph
     node-detail panel when a node is clicked."""
     await verify_auth(request)
     return await fetch_memory_links(memory_id)
@@ -551,7 +530,7 @@ def _prep_memories(rows: list) -> list:
 async def ui_memories(request: Request):
     """
     List or search memories for the UI.
-    - q=*  (or omitted) → list_all_memories (includes full content_md — no second fetch needed)
+    - q=*  (or omitted) → list_all_memories (includes full content_md, so no second fetch is needed)
     - q=<text>          → hybrid vector+FTS search via find_memories (snippet only)
     Query params: project, q, type, status, limit
     """
@@ -582,7 +561,7 @@ async def ui_memories(request: Request):
 @app.get('/api/ui/memories/{memory_id}')
 async def ui_memory_get(memory_id: str, request: Request):
     """
-    Fetch a single memory by UUID with full content_md. Read-only — does NOT
+    Fetch a single memory by UUID with full content_md. Read-only: does NOT
     bump access count (only webhook get_memory counts).
 
     Note: UUIDs are globally unique so we deliberately do NOT scope by project

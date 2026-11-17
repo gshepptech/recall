@@ -8,7 +8,7 @@
 
   <rect width="1100" height="380" rx="20" fill="#0b1022" stroke="#241c4a" stroke-width="2"/>
   <text x="40" y="52" font-family="Inter, Helvetica, Arial, sans-serif" font-size="26" font-weight="800" fill="url(#g)">/recall:scour</text>
-  <text x="190" y="52" font-family="Inter, Helvetica, Arial, sans-serif" font-size="18" fill="#8b93b8">— read a codebase like the back of your hand, then write evidence-backed facts</text>
+  <text x="190" y="52" font-family="Inter, Helvetica, Arial, sans-serif" font-size="18" fill="#8b93b8">Read a codebase like the back of your hand, then write evidence-backed facts</text>
 
   <!-- connecting line -->
   <line x1="110" y1="170" x2="990" y2="170" stroke="#2a2150" stroke-width="2"/>

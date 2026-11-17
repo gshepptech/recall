@@ -1,15 +1,15 @@
 """
-MCP server for Recall — mounts at /mcp on the same FastAPI app.
+MCP server for Recall, mounted at /mcp on the same FastAPI app.
 
 Transports (primary first):
 
-  Streamable HTTP (MCP spec 2025-03-26) — POST /mcp
+  Streamable HTTP (MCP spec 2025-03-26): POST /mcp
       Stateless. No sessions. No in-process state.
       Container restarts are completely invisible to connected clients.
       Use this URL in mcp.json / settings.json:
         http://<host>:<port>/mcp
 
-  SSE (deprecated) — GET /mcp/sse + POST /mcp/messages
+  SSE (deprecated): GET /mcp/sse + POST /mcp/messages
       Legacy. Sessions stored in-process; container restart orphans all clients.
       Kept for backwards-compat only. Will be removed in a future release.
 
@@ -59,7 +59,7 @@ from recall.commands.create_token import cmd_create_token
 from recall.commands.save_prompt import cmd_save_prompt
 from recall.commands.list_prompts import cmd_list_prompts
 from recall.commands.recall_help import cmd_recall_help
-from recall.auth import verify_auth, ROLE_PERMISSIONS
+from recall.auth import verify_auth, scope_mismatch_detail, COMMAND_MIN_ROLE, ROLE_PERMISSIONS
 from recall.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ logger = logging.getLogger(__name__)
 mcp = Server('recall')
 sse_transport = SseServerTransport('/messages')
 
-# Per-connection auth — ContextVar (Streamable HTTP/SSE) + session dict
+# Per-connection auth: ContextVar (Streamable HTTP/SSE) + session dict
 # (belt-and-suspenders for legacy SSE message posts).
 _mcp_session_role: ContextVar[str] = ContextVar('_mcp_session_role', default='viewer')
 _mcp_session_scope: ContextVar[str | None] = ContextVar('_mcp_session_scope', default=None)
@@ -109,7 +109,7 @@ def _text(data: dict) -> list[types.TextContent]:
     return [types.TextContent(type='text', text=json.dumps(data, ensure_ascii=False))]
 
 
-# ── Tool registry (single source of truth — used by both transports) ──────────
+# ── Tool registry (single source of truth, used by both transports) ──────────
 
 _TOOLS: list[types.Tool] = [
     types.Tool(
@@ -361,9 +361,7 @@ async def _run_tool(name: str, arguments: dict, role: str) -> list[types.TextCon
     command = name.replace('recall_', '', 1)
     blocked = ROLE_PERMISSIONS.get(role, ROLE_PERMISSIONS['viewer'])
     if command in blocked:
-        required = next(
-            (r for r, bl in ROLE_PERMISSIONS.items() if command not in bl), 'owner'
-        )
+        required = COMMAND_MIN_ROLE.get(command, 'owner')
         return _text({'error': 'insufficient permissions', 'required_role': required})
 
     handler = _MCP_DISPATCH.get(name)
@@ -374,21 +372,12 @@ async def _run_tool(name: str, arguments: dict, role: str) -> list[types.TextCon
     if project_scope and name in _PROJECT_SCOPED_TOOLS:
         requested_project = (arguments or {}).get('project')
         if requested_project and requested_project != project_scope:
-            return _text({
-                'error': 'token_scope_mismatch',
-                'project_scope': project_scope,
-                'requested_project': requested_project,
-                'message': (
-                    f"This token is restricted to project '{project_scope}'. "
-                    f"Set \"project\": \"{project_scope}\" in your request to continue."
-                ),
-                'hint': f'Change your project parameter to "{project_scope}".',
-            })
+            return _text(scope_mismatch_detail(project_scope, requested_project))
         arguments = {**(arguments or {}), 'project': project_scope}
 
     # Inject runner from X-Recall-Runner header for the two commands
     # that participate in the prompt_id <-> run handshake. The caller never has
-    # to know its own hostname — it comes from the mcp.json headers block.
+    # to know its own hostname; it comes from the mcp.json headers block.
     runner = _mcp_session_runner.get()
     if runner and name in ('recall_get_prompt', 'recall_log_run'):
         if not (arguments or {}).get('runner'):
@@ -414,7 +403,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     return await _run_tool(name, arguments, role)
 
 
-# ── Streamable HTTP transport — MCP spec 2025-03-26 ───────────────────────────
+# ── Streamable HTTP transport (MCP spec 2025-03-26) ───────────────────────────
 
 async def _dispatch_rpc(method: str, params: dict, rpc_id, role: str):
     """Route one JSON-RPC 2.0 call. Returns response dict, or None for notifications."""
@@ -470,7 +459,7 @@ async def _dispatch_rpc(method: str, params: dict, rpc_id, role: str):
 
 async def handle_streamable_http(request: Request) -> Response:
     """
-    POST /mcp — Streamable HTTP transport (MCP spec 2025-03-26).
+    POST /mcp: Streamable HTTP transport (MCP spec 2025-03-26).
     Stateless: no sessions, no in-process state.
     Container restarts are transparent to all connected clients.
 
@@ -524,20 +513,20 @@ async def handle_streamable_http(request: Request) -> Response:
 
 
 async def _streamable_http_endpoint(scope, receive, send):
-    """ASGI shim — used by the mounted sub-app only. Delegates to handle_streamable_http."""
+    """ASGI shim used by the mounted sub-app only. Delegates to handle_streamable_http."""
     req = Request(scope, receive)
     response = await handle_streamable_http(req)
     await response(scope, receive, send)
 
 
-# ── SSE transport — deprecated, kept for backwards-compat ─────────────────────
+# ── SSE transport (deprecated, kept for older clients) ─────────────────────
 
 _SID_RE = re.compile(r'session_id=([0-9a-f]+)')
 
 
 async def _sse_endpoint(scope, receive, send):
     logger.warning(
-        'SSE transport is deprecated — migrate MCP clients to POST /mcp '
+        'SSE transport is deprecated; migrate MCP clients to POST /mcp '
         '(Streamable HTTP, MCP spec 2025-03-26). /mcp/sse will be removed in a future release.'
     )
     req = Request(scope, receive)
@@ -618,7 +607,7 @@ def build_mcp_app():
        advertise /mcp/sse/messages instead of /mcp/messages as the POST target.
 
     Wrapped in CORSMiddleware because mounted ASGI sub-apps sit outside the
-    parent FastAPI middleware chain — CORS headers must be applied here directly.
+    parent FastAPI middleware chain, so CORS headers must be applied here directly.
     """
     from starlette.middleware.cors import CORSMiddleware
 
@@ -632,7 +621,7 @@ def build_mcp_app():
 
         method = scope.get('method', 'GET').upper()
 
-        # Primary: Streamable HTTP (MCP spec 2025-03-26) — stateless POST
+        # Primary: Streamable HTTP (MCP spec 2025-03-26): stateless POST
         if path in ('/', '') and method == 'POST':
             await _streamable_http_endpoint(scope, receive, send)
 

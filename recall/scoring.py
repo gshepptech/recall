@@ -58,7 +58,7 @@ def compute_score(mem: dict) -> float:
 def score(raw: float, mem: dict) -> float:
     """
     Re-ranks search results using decay, frequency, and confidence.
-    Applied post-search on top-K candidates only — not a full table scan.
+    Applied post-search on top-K candidates only, not a full table scan.
     """
     age_days = _age_days(mem)
     decay = max(0.05, math.exp(-0.693 * age_days / DECAY_DAYS))

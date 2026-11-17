@@ -1,5 +1,5 @@
 """
-Tests for GET /api/ui/users — unauthenticated, returns token labels, excludes owner.
+Tests for GET /api/ui/users: unauthenticated, returns token labels, excludes owner.
 
 Run:
     pytest recall/tests/test_users_endpoint.py -v
@@ -83,17 +83,17 @@ class TestUsersEndpoint:
             assert 'token' not in item, f'token must not be exposed: {item}'
 
     def test_excludes_owner_role(self, server):
-        # create_token blocks owner role — just verify no owner-role labels appear
+        # create_token blocks the owner role, so just verify no owner-role labels appear
         r = httpx.get(f'{BASE_UI}/users', timeout=10)
         data = r.json()
         labels = [d['label'] for d in data]
-        # owner token is env-only — not in access_tokens, so nothing to filter here,
+        # owner token is env-only and not in access_tokens, so nothing to filter here,
         # but confirm we get the expected non-owner labels back
         assert 'alice' in labels
 
     def test_excludes_inactive_tokens(self, server):
         _create_token(server, 'bob-inactive')
-        # deactivate directly — no deactivate API, so skip if no DB access
+        # deactivate directly: there is no deactivate API, so skip if no DB access
         # just assert the label count is deterministic and labels exist
         r = httpx.get(f'{BASE_UI}/users', timeout=10)
         data = r.json()

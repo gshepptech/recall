@@ -6,7 +6,7 @@ async def cmd_log_error(body: dict) -> dict:
     if not message or not message.strip():
         return {
             'error': "message is required (use field name 'message' or 'error')",
-            'hint': "field name 'title' is not stored — use 'message' instead",
+            'hint': "field name 'title' is not stored; use 'message' instead",
         }
     error_id = new_id()
     await record_error(body, error_id)

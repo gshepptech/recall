@@ -3,7 +3,7 @@
 A memory is flagged when BOTH conditions are true:
   - No updates in STALE_DAYS days (based on updated_at, which the save path
     bumps on every re-save; fall back to created_at if updated_at is NULL).
-  - Zero incoming wikilinks — nothing currently [[links]] to it.
+  - Zero incoming wikilinks: nothing currently [[links]] to it.
 
 Verdict:
   - days_idle > 90  → 'archive'

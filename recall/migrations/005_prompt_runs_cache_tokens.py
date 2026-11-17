@@ -12,7 +12,7 @@ CREATE INDEX IF NOT EXISTS idx_prompt_runs_prompt_name ON prompt_runs(prompt_nam
 
 def run(conn):
     import sqlite3
-    # SQLite ALTER TABLE ADD COLUMN errors if column already exists — swallow those.
+    # SQLite ALTER TABLE ADD COLUMN errors if column already exists, so swallow those.
     for stmt in SQL.strip().split(';'):
         stmt = stmt.strip()
         if not stmt:
