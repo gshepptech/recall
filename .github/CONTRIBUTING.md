@@ -19,7 +19,19 @@ pytest
 ```
 
 The integration suites start their own server on a free port with a temporary SQLite
-database, so they need no setup. If you change ranking, also run
+database, so they need no setup. If you change storage or search code, also run the
+integration suite against PostgreSQL. It follows the `RECALL_DB_*` settings:
+
+```bash
+docker run -d --rm --name recall-test-pg -p 55432:5432 \
+  -e POSTGRES_USER=recall -e POSTGRES_PASSWORD=recall -e POSTGRES_DB=recall \
+  pgvector/pgvector:pg16
+RECALL_DB_BACKEND=postgres RECALL_DB_HOST=127.0.0.1 RECALL_DB_PORT=55432 \
+  RECALL_DB_PASSWORD=recall pytest -q recall/tests/test_all.py
+docker stop recall-test-pg
+```
+
+If you change ranking, also run
 `python -m recall.tests.eval_retrieval` and include the before and after numbers.
 
 ## Pull requests

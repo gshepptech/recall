@@ -113,58 +113,58 @@ async def save_memory_pg(pool: 'asyncpg.Pool', data: dict, embedding: list) -> s
 
 # ── search_memories ───────────────────────────────────────────────────────────
 
+_TSQUERY_ALL = "plainto_tsquery('english', $1)"
+# plainto_tsquery quotes each lexeme and joins them with &, so swapping the
+# operator gives the same terms OR-ed together
+_TSQUERY_ANY = "replace(plainto_tsquery('english', $1)::text, ' & ', ' | ')::tsquery"
+
+
+async def _fts_query_pg(conn, tsquery: str, query_text: str, project_param, limit: int,
+                        memory_type: str = None):
+    """Run one tsvector match, ranked. Returns rows or raises."""
+    sql = f"""
+        SELECT id, title,
+               SUBSTRING(content_md, 1, 500)  AS snippet,
+               memory_type, project, module,
+               created_at, access_count, confidence_score,
+               ts_rank(to_tsvector('english', title || ' ' || content_md), {tsquery}) AS fts_score
+        FROM memories
+        WHERE to_tsvector('english', title || ' ' || content_md) @@ {tsquery}
+          AND searchable = 1
+          AND ($2::text IS NULL OR project = $2)
+          AND ($4::text IS NULL OR memory_type = $4)
+        ORDER BY fts_score DESC
+        LIMIT $3
+    """
+    return await conn.fetch(sql, query_text, project_param, limit, memory_type)
+
+
 async def _fts_search_pg(conn, query_text: str, project: str, limit: int,
                         memory_type: str = None) -> tuple:
-    """tsvector FTS with ILIKE fallback. Returns (results, degraded, reason)."""
+    """tsvector FTS, AND then OR, then ILIKE. Returns (results, degraded, reason)."""
     # global → sees ALL memories; specific project → scoped to that project only
     project_param = None if project == 'global' else project
     rows = []
     degraded = False
     reason = ''
 
-    # Level 1: tsvector FTS MATCH
+    # Level 1: every term must match
     try:
-        if memory_type:
-            rows = await conn.fetch("""
-                SELECT id, title,
-                       SUBSTRING(content_md, 1, 500)  AS snippet,
-                       memory_type, project, module,
-                       created_at, access_count, confidence_score,
-                       ts_rank(
-                           to_tsvector('english', title || ' ' || content_md),
-                           plainto_tsquery('english', $1)
-                       ) AS fts_score
-                FROM memories
-                WHERE to_tsvector('english', title || ' ' || content_md)
-                          @@ plainto_tsquery('english', $1)
-                  AND searchable = 1
-                  AND ($2::text IS NULL OR project = $2)
-                  AND memory_type = $4
-                ORDER BY fts_score DESC
-                LIMIT $3
-            """, query_text, project_param, limit, memory_type)
-        else:
-            rows = await conn.fetch("""
-                SELECT id, title,
-                       SUBSTRING(content_md, 1, 500)  AS snippet,
-                       memory_type, project, module,
-                       created_at, access_count, confidence_score,
-                       ts_rank(
-                           to_tsvector('english', title || ' ' || content_md),
-                           plainto_tsquery('english', $1)
-                       ) AS fts_score
-                FROM memories
-                WHERE to_tsvector('english', title || ' ' || content_md)
-                          @@ plainto_tsquery('english', $1)
-                  AND searchable = 1
-                  AND ($2::text IS NULL OR project = $2)
-                ORDER BY fts_score DESC
-                LIMIT $3
-            """, query_text, project_param, limit)
+        rows = await _fts_query_pg(conn, _TSQUERY_ALL, query_text, project_param, limit, memory_type)
     except Exception as e:
         logger.warning(f'FTS MATCH failed: {e}')
 
-    # Level 2: ILIKE fallback
+    # Level 2: any term may match
+    if not rows and len(query_text.split()) > 1:
+        try:
+            rows = await _fts_query_pg(conn, _TSQUERY_ANY, query_text, project_param, limit, memory_type)
+            if rows:
+                degraded = True
+                reason = 'fts_or_fallback'
+        except Exception as e:
+            logger.warning(f'FTS OR fallback failed: {e}')
+
+    # Level 3: ILIKE fallback
     if not rows:
         try:
             if memory_type:
@@ -220,6 +220,8 @@ async def _fts_search_pg(conn, query_text: str, project: str, limit: int,
             'score': round(rescore(raw, mem), 4),
             'relevance': raw,
             'created_at': created_str,
+            'access_count': row['access_count'],
+            'confidence_score': row['confidence_score'],
         })
     return results, degraded, reason
 
@@ -307,6 +309,8 @@ async def search_memories_pg(pool: 'asyncpg.Pool', query_text: str,
                 'score': round(rescore(raw, mem), 4),
                 'relevance': raw,
                 'created_at': created_str,
+                'access_count': row['access_count'],
+                'confidence_score': row['confidence_score'],
             })
 
         results.sort(key=lambda x: x['score'], reverse=True)
