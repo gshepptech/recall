@@ -79,13 +79,16 @@ with `403 token_scope_mismatch`, and lookups by id are limited to that project.
 
 ### Storage
 
-Two backends implement the same functions in `recall/db.py`:
+`recall/db.py` is the storage API the commands call. Each function dispatches to one of
+two backends:
 
 - **SQLite** (default). FTS5 handles keyword search and `sqlite-vec` handles vectors.
-  Good for one person on one machine.
+  Good for one person on one machine. Memory writes and search live in
+  `recall/db_sqlite_search.py`.
 - **PostgreSQL + pgvector** (`RECALL_DB_BACKEND=postgres`). `tsvector` handles keyword
   search, and an HNSW index on a `halfvec` column handles vectors. The Docker stack uses
-  this backend so several agents can write at once.
+  this backend so several agents can write at once. The schema and the other queries live
+  in `recall/db_postgres.py`; memory writes and search live in `recall/db_postgres_search.py`.
 
 The PostgreSQL vector column is sized by `RECALL_EMBEDDING_DIM` and must match the
 embedding model. `./install.sh embedder` resizes it to 768 for `nomic-embed-text`.
