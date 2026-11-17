@@ -27,9 +27,15 @@ separately: the server version is in `recall/version.py`, the plugin version in
   `/recall:connect` and the session brief.
 - `./install.sh add-user` labelled every new token `unknown`.
 - `recall_help` listed two `hygiene_report` aliases that the server rejects.
+- On PostgreSQL, search results left out `access_count` and `confidence_score`.
+- On PostgreSQL, a multi-word keyword search found nothing unless every word matched. It
+  now falls back to matching any word, as SQLite does.
+- Over MCP, a blocked tool reported `owner` as the required role instead of the tool's
+  minimum role.
 
 ### Added
-- GitHub Actions CI that runs `ruff check` and `pytest` on Python 3.10 and 3.12.
+- GitHub Actions CI that runs `ruff check` and `pytest` on Python 3.10 and 3.12, and the
+  integration suite against PostgreSQL with pgvector.
 - Unit tests for the scoring helpers and a regression test for project-scoped deletes.
 - A command reference (`docs/commands.md`), a setup guide (`docs/setup.md`) and an
   architecture guide (`docs/architecture.md`).

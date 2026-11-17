@@ -32,3 +32,36 @@ jobs:
           cache: pip
       - run: pip install -e ".[dev]"
       - run: pytest -q
+
+  test-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: recall
+          POSTGRES_PASSWORD: recall
+          POSTGRES_DB: recall
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U recall"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      RECALL_DB_BACKEND: postgres
+      RECALL_DB_HOST: localhost
+      RECALL_DB_PORT: "5432"
+      RECALL_DB_NAME: recall
+      RECALL_DB_USER: recall
+      RECALL_DB_PASSWORD: recall
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev,postgres]"
+      # The integration suite follows RECALL_DB_BACKEND; the other files pin SQLite
+      - run: pytest -q recall/tests/test_all.py
