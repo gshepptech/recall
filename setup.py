@@ -17,6 +17,7 @@ setup(
     url='https://github.com/gshepptech/recall',
     license='MIT',
     packages=find_packages(),
+    package_data={'recall': ['ui.html', 'static/*']},
     python_requires='>=3.10',
     install_requires=[
         'fastapi>=0.111.0',

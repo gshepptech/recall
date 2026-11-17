@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -387,3 +388,15 @@ def test_mcp_reports_minimum_role_for_blocked_tool(ctx: ServerContext):
 
     create = _mcp_tool_call(ctx, viewer_token, "recall_create_token", {"label": "x", "role": "viewer"})
     assert create == {"error": "insufficient permissions", "required_role": "owner"}, create
+
+
+def test_web_ui_assets_are_served(ctx: ServerContext):
+    page = ctx.client.get(f"{ctx.base}/")
+    assert page.status_code == 200, page.text
+    assets = re.findall(r'(?:href|src)="(/static/[^"]+)"', page.text)
+    assert "/static/ui.css" in assets and "/static/main.js" in assets, assets
+    for path in assets:
+        asset = ctx.client.get(f"{ctx.base}{path}")
+        assert asset.status_code == 200, path
+        expected = "text/css" if path.endswith(".css") else "javascript"
+        assert expected in asset.headers["content-type"], (path, asset.headers["content-type"])

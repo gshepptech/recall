@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
 from recall.db import (
@@ -267,6 +268,8 @@ async def health():
 # ── Web UI ─────────────────────────────────────────────────────────────────────
 
 _UI_HTML = (Path(__file__).with_name('ui.html')).read_text(encoding='utf-8')
+
+app.mount('/static', StaticFiles(directory=Path(__file__).with_name('static')), name='static')
 
 
 @app.get('/', response_class=HTMLResponse)
