@@ -29,7 +29,7 @@ from recall.db import (
     set_aio_db,
     token_usage_stats,
 )
-from recall.auth import verify_auth, assert_scope, ROLE_PERMISSIONS
+from recall.auth import verify_auth, assert_scope, COMMAND_MIN_ROLE, ROLE_PERMISSIONS
 from recall.commands.search import cmd_search
 from recall.commands.save_memory import cmd_save_memory
 from recall.commands.get_prompt import cmd_get_prompt
@@ -112,30 +112,6 @@ async def mcp_streamable_http(request: Request):
 # ── MCP — SSE transport for older MCP clients ─────────────────────────────────
 # Mount handles /mcp/sse and /mcp/messages only.
 app.mount('/mcp', build_mcp_app())
-
-
-# ── Minimum role required per command ─────────────────────────────────────────
-
-COMMAND_MIN_ROLE = {
-    'search':               'viewer',
-    'get_memory':           'viewer',
-    'get_prompt':           'viewer',
-    'list_prompts':         'viewer',
-    'list_requirements':    'viewer',
-    'recall_help':           'viewer',
-    'version':              'viewer',
-    'hygiene_report':       'viewer',
-    'save_memory':          'developer',
-    'save_prompt':          'developer',
-    'save_requirement':     'developer',
-    'promote_requirement':  'developer',
-    'log_run':              'developer',
-    'log_error':            'developer',
-    'get_schema':           'admin',
-    'delete_memory':        'admin',
-    'debug_protocol':       'admin',
-    'create_token':         'owner',
-}
 
 
 # ── debug_protocol handler ────────────────────────────────────────────────────

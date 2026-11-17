@@ -7,14 +7,37 @@ from recall.db import get_db_and_lock
 
 RECALL_TOKEN = os.getenv('RECALL_TOKEN', '')
 
+ROLE_ORDER = ['viewer', 'developer', 'admin', 'owner']
+
+# Minimum role required per canonical command
+COMMAND_MIN_ROLE = {
+    'search':               'viewer',
+    'get_memory':           'viewer',
+    'get_prompt':           'viewer',
+    'list_prompts':         'viewer',
+    'list_requirements':    'viewer',
+    'recall_help':          'viewer',
+    'version':              'viewer',
+    'hygiene_report':       'viewer',
+    'save_memory':          'developer',
+    'save_prompt':          'developer',
+    'save_requirement':     'developer',
+    'promote_requirement':  'developer',
+    'log_run':              'developer',
+    'log_error':            'developer',
+    'get_schema':           'admin',
+    'delete_memory':        'admin',
+    'debug_protocol':       'admin',
+    'create_token':         'owner',
+}
+
+# Commands each role may not run: everything whose minimum role ranks above it
 ROLE_PERMISSIONS = {
-    'owner':     [],  # empty blocked list = all commands allowed
-    'admin':     ['create_token'],
-    'developer': ['create_token', 'get_schema', 'debug_protocol', 'delete_memory'],
-    'viewer':    ['save_memory', 'save_prompt', 'save_requirement',
-                  'promote_requirement', 'log_run', 'log_error',
-                  'create_token', 'get_schema', 'debug_protocol',
-                  'delete_memory'],
+    role: [
+        cmd for cmd, min_role in COMMAND_MIN_ROLE.items()
+        if ROLE_ORDER.index(min_role) > ROLE_ORDER.index(role)
+    ]
+    for role in ROLE_ORDER
 }
 
 
@@ -75,16 +98,18 @@ def assert_scope(auth_info: dict, project: str) -> None:
     """Raise 403 if the token is restricted to a different project."""
     scope = auth_info.get('project_scope')
     if scope and scope != project:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                'error': 'token_scope_mismatch',
-                'project_scope': scope,
-                'requested_project': project,
-                'message': (
-                    f"This token is restricted to project '{scope}'. "
-                    f"Set \"project\": \"{scope}\" in your request to continue."
-                ),
-                'hint': f'Change your project parameter to "{scope}".',
-            }
-        )
+        raise HTTPException(status_code=403, detail=scope_mismatch_detail(scope, project))
+
+
+def scope_mismatch_detail(scope: str, project: str) -> dict:
+    """Error payload for a project-scoped token used against another project."""
+    return {
+        'error': 'token_scope_mismatch',
+        'project_scope': scope,
+        'requested_project': project,
+        'message': (
+            f"This token is restricted to project '{scope}'. "
+            f"Set \"project\": \"{scope}\" in your request to continue."
+        ),
+        'hint': f'Change your project parameter to "{scope}".',
+    }

@@ -59,7 +59,7 @@ from recall.commands.create_token import cmd_create_token
 from recall.commands.save_prompt import cmd_save_prompt
 from recall.commands.list_prompts import cmd_list_prompts
 from recall.commands.recall_help import cmd_recall_help
-from recall.auth import verify_auth, ROLE_PERMISSIONS
+from recall.auth import verify_auth, scope_mismatch_detail, COMMAND_MIN_ROLE, ROLE_PERMISSIONS
 from recall.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -361,9 +361,7 @@ async def _run_tool(name: str, arguments: dict, role: str) -> list[types.TextCon
     command = name.replace('recall_', '', 1)
     blocked = ROLE_PERMISSIONS.get(role, ROLE_PERMISSIONS['viewer'])
     if command in blocked:
-        required = next(
-            (r for r, bl in ROLE_PERMISSIONS.items() if command not in bl), 'owner'
-        )
+        required = COMMAND_MIN_ROLE.get(command, 'owner')
         return _text({'error': 'insufficient permissions', 'required_role': required})
 
     handler = _MCP_DISPATCH.get(name)
@@ -374,16 +372,7 @@ async def _run_tool(name: str, arguments: dict, role: str) -> list[types.TextCon
     if project_scope and name in _PROJECT_SCOPED_TOOLS:
         requested_project = (arguments or {}).get('project')
         if requested_project and requested_project != project_scope:
-            return _text({
-                'error': 'token_scope_mismatch',
-                'project_scope': project_scope,
-                'requested_project': requested_project,
-                'message': (
-                    f"This token is restricted to project '{project_scope}'. "
-                    f"Set \"project\": \"{project_scope}\" in your request to continue."
-                ),
-                'hint': f'Change your project parameter to "{project_scope}".',
-            })
+            return _text(scope_mismatch_detail(project_scope, requested_project))
         arguments = {**(arguments or {}), 'project': project_scope}
 
     # Inject runner from X-Recall-Runner header for the two commands
