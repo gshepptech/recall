@@ -67,7 +67,7 @@ def fmt(items):
         s = (it.get("snippet") or "").strip().replace("\n", " ")
         if len(s) > 140:
             s = s[:140] + "…"
-        lines.append(f"- **{t}** — {s}" if s else f"- **{t}**")
+        lines.append(f"- **{t}**: {s}" if s else f"- **{t}**")
     return "\n".join(lines)
 
 print("## Recall: team memory")
@@ -78,7 +78,7 @@ if glob:
     print("\n**Global conventions**")
     print(fmt(glob))
 if projr:
-    print(f"\n**{proj} — project facts**")
+    print(f"\n**{proj}: project facts**")
     print(fmt(projr))
 print("\n_If a fact looks stale, re-verify it against current code before relying on it._")
 sys.exit(0)

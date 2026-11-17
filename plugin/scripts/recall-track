@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Enable Recall auto-updates in the CURRENT git repo by installing chained
 # post-commit + post-merge hooks that fire incremental scour. Idempotent and
-# non-destructive — appends to existing hooks (honors core.hooksPath / husky).
+# non-destructive: appends to existing hooks (honors core.hooksPath / husky).
 set -u
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "✗ not inside a git repo"; exit 1; }
@@ -25,7 +25,7 @@ MARK="# >>> recall auto-scour >>>"
 add_hook() {
   hook="$HOOKDIR/$1"; from="$2"
   if [ -f "$hook" ] && grep -q "recall auto-scour" "$hook" 2>/dev/null; then
-    echo "• $1 already has Recall hook — skipping"; return
+    echo "• $1 already has Recall hook, skipping"; return
   fi
   [ -f "$hook" ] || printf '#!/usr/bin/env bash\n' > "$hook"
   {
@@ -38,4 +38,4 @@ add_hook() {
 }
 add_hook post-commit "HEAD~1"
 add_hook post-merge  "ORIG_HEAD"
-echo "✓ Recall auto-scour enabled in $(basename "$ROOT") — every commit/merge now refreshes shared memory."
+echo "✓ Recall auto-scour enabled in $(basename "$ROOT"). Every commit and merge now refreshes shared memory."

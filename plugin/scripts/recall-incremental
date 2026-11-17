@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Headless incremental Recall scour — fired by git post-commit / post-merge hooks.
+# Headless incremental Recall scour, fired by git post-commit / post-merge hooks.
 # Best-effort, fire-and-forget. Reads ONLY the diff, derives ONLY high-confidence facts,
 # saves them via the recall MCP tools (using headless `claude -p`). Never blocks the commit.
 #
 # Usage: recall-incremental <FROM_REF> [TO_REF]      (TO defaults to HEAD)
-# Portable to bash 3.2 (macOS) — no mapfile/associative arrays.
+# Portable to bash 3.2 (macOS): no mapfile or associative arrays.
 set -u
 
 FROM="${1:-HEAD~1}"
@@ -32,7 +32,7 @@ PROMPT="NON-INTERACTIVE incremental Recall scour. Repo: '$PROJECT'. Commit: $SHA
 Changed files:
 $FILES
 
-Read each changed file FULLY. Derive ONLY high-confidence facts from CODE BEHAVIOR — never from comments (comments are not evidence). Capture:
+Read each changed file FULLY. Derive ONLY high-confidence facts from CODE BEHAVIOR, never from comments (comments are not evidence). Capture:
 - conventions / 'how we write code here'  -> recall_save_memory (memory_type 'note')
 - deliberate choices + why                -> recall_save_memory (memory_type 'decision')
 - how a feature must work                 -> recall_save_requirement
