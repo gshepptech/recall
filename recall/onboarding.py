@@ -18,7 +18,7 @@ def _ask(prompt: str, validator=None, default: str = None) -> str:
         if not raw and default:
             return default
         if not raw:
-            print('  Required — please enter a value.')
+            print('  Required. Please enter a value.')
             continue
         if validator:
             err = validator(raw)

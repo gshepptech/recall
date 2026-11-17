@@ -63,7 +63,7 @@ function renderPromptsSidebar() {
       const p = filteredSortedPrompts()[+el.dataset.pidx];
       S.selPrompt = p;
       renderPromptsSidebar();
-      // These are independent async ops — run in parallel
+      // These are independent async ops, so run them in parallel
       renderPromptsDetail(p);
       loadRunHistory(p);
     });

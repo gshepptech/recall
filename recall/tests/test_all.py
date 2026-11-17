@@ -46,7 +46,7 @@ def save_memory_tags():
 
 
 def save_memory_duplicate():
-    # Save same title twice — should return same id (ON CONFLICT DO NOTHING)
+    # Save same title twice; should return the same id (ON CONFLICT DO NOTHING)
     r1 = post('save_memory', {'title': 'duplicate test memory', 'content_md': 'first version'})
     r2 = post('save_memory', {'title': 'duplicate test memory', 'content_md': 'second version'})
     assert r1['id'] == r2['id'], f'expected same id on duplicate, got {r1["id"]} vs {r2["id"]}'
@@ -138,7 +138,7 @@ def log_run_auto_links_prompt_id():
         'memory_type': 'prompt',
     })
 
-    # Fetch with a runner — server records the handshake
+    # Fetch with a runner; the server records the handshake
     p = post('get_prompt', {
         'prompt_name': 'test:auto_link_prompt',
         'runner': 'handshake-host',
@@ -169,7 +169,7 @@ def log_run_auto_links_prompt_id():
     assert row is not None, f'run {run_id} not found in prompt_runs'
     assert row[0] == expected_id, f'expected prompt_id={expected_id}, got {row[0]}'
 
-    # Second log_run from same runner (no new get_prompt) must NOT re-link —
+    # Second log_run from same runner (no new get_prompt) must NOT re-link:
     # pending_runs should have been consumed by the first call.
     r2 = post('log_run', {
         'runner': 'handshake-host',
@@ -367,8 +367,8 @@ def run_all():
 
 
 def test_suite():
-    """Pytest entry point — runs the full integration suite via run_all()."""
-    assert run_all(), "One or more integration tests failed — see output above"
+    """Pytest entry point: runs the full integration suite via run_all()."""
+    assert run_all(), "One or more integration tests failed; see output above"
 
 
 if __name__ == '__main__':

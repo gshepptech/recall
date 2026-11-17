@@ -41,7 +41,7 @@ def _check_for_updates():
             if local_sha and remote_sha != local_sha:
                 print('\n\u26a0  Recall update available \u2014 run: recall update\n', flush=True)
         except Exception:
-            pass  # unreachable host, not a git repo, etc. — fail silently
+            pass  # unreachable host, not a git repo, etc.: fail silently
 
     t = threading.Thread(target=_check, daemon=True)
     t.start()
@@ -55,7 +55,7 @@ def run_update():
 
     print('Updating Recall...\n')
 
-    # 1 — git pull
+    # 1. git pull
     try:
         result = subprocess.run(
             ['git', 'pull', 'origin', 'main'],
@@ -70,7 +70,7 @@ def run_update():
         print(f'({e})')
         sys.exit(1)
 
-    # 2 — pip install
+    # 2. pip install
     load_dotenv(install_dir / '.env')
     backend = os.getenv('RECALL_DB_BACKEND', 'sqlite').lower()
     pip_arg = '-e .[postgres]' if backend == 'postgres' else '-e .'
@@ -83,7 +83,7 @@ def run_update():
     else:
         print(f'pip: {pip_arg} installed OK')
 
-    # 3 — new sha
+    # 3. new sha
     try:
         sha_result = subprocess.run(
             ['git', 'rev-parse', 'HEAD'],
@@ -93,13 +93,13 @@ def run_update():
     except Exception:
         new_sha = 'unknown'
 
-    # 4 — Docker: print rebuild instructions, do not rebuild automatically
+    # 4. Docker: print rebuild instructions, do not rebuild automatically
     if Path('/.dockerenv').exists():
         print('\nRunning inside Docker \u2014 to apply the update, run on the host:')
         print('  docker compose up -d --build')
         restart_status = 'manual step required'
     else:
-        # 5 — systemd: restart if the service is active
+        # 5. systemd: restart if the service is active
         try:
             check = subprocess.run(
                 ['systemctl', '--user', 'is-active', 'recall'],
@@ -172,14 +172,14 @@ def main():
     logging.basicConfig(level=logging.INFO, format='%(levelname)s:     %(message)s')
 
     # SQLite: run migrations + onboarding once before uvicorn starts.
-    # init_db() is idempotent — the server's lifespan will call it again and skip.
+    # init_db() is idempotent; the server's lifespan will call it again and skip.
     if backend == 'sqlite':
         from recall.db import init_db
         from recall.onboarding import run_onboarding
         db, _ = init_db()
         run_onboarding(db, port=port)
 
-    # Background update check — non-blocking, fail-silent
+    # Background update check: non-blocking, fail-silent
     _check_for_updates()
 
     import uvicorn

@@ -38,7 +38,7 @@ def set_aio_db(conn: 'aiosqlite.Connection') -> None:
     _aio_db = conn
 
 
-# ── SQLite internals (sync — for init_db / auth only) ─────────────────────────
+# ── SQLite internals (sync, for init_db / auth only) ─────────────────────────
 
 def _make_connection(path: str) -> sqlite3.Connection:
     db = sqlite3.connect(path, check_same_thread=False)
@@ -67,7 +67,7 @@ def init_db() -> tuple:
                        done by server.py startup via db_postgres.init_pg().
                        Returns (None, None).
 
-    Safe to call multiple times — skips setup if already initialised.
+    Safe to call multiple times; skips setup if already initialised.
     """
     global _db, _is_pg
     backend = os.getenv('RECALL_DB_BACKEND', 'sqlite').lower()
@@ -87,7 +87,7 @@ def init_db() -> tuple:
 
 
 def get_db_and_lock() -> tuple:
-    """Return the raw SQLite (db, lock) — used by auth.py for sync token lookup."""
+    """Return the raw SQLite (db, lock), used by auth.py for sync token lookup."""
     return _db, _lock
 
 
@@ -105,10 +105,10 @@ async def open_aio_db(path: str) -> 'aiosqlite.Connection':
     return db
 
 
-# ── Async public API — dispatches to SQLite or Postgres ───────────────────────
+# ── Async public API: dispatches to SQLite or Postgres ───────────────────────
 #
 # Commands call these functions; they work transparently with both backends.
-# SQLite path uses _aio_db (aiosqlite) — no blocking, no threading.
+# SQLite path uses _aio_db (aiosqlite): no blocking, no threading.
 
 async def store_memory(data: dict, embedding: list) -> str:
     """Upsert a memory and its embedding."""
@@ -286,7 +286,7 @@ async def record_run(data: dict, run_id: str) -> None:
 
 
 async def record_pending_run(runner: str, prompt_id: str, project: str) -> None:
-    """Record that `runner` just fetched `prompt_id`. UPSERT — last write wins."""
+    """Record that `runner` just fetched `prompt_id`. UPSERT; last write wins."""
     if _is_pg:
         from recall.db_postgres import record_pending_run_pg, get_pg_pool
         await record_pending_run_pg(get_pg_pool(), runner, prompt_id, project)

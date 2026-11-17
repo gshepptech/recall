@@ -3,7 +3,7 @@ import sqlite3
 VERSION = 4
 DESCRIPTION = "fix project isolation: UNIQUE(title, memory_type) -> UNIQUE(title, memory_type, project)"
 
-SQL = ""  # unused — run() handles this migration
+SQL = ""  # unused; run() handles this migration
 
 
 def run(conn: sqlite3.Connection):
@@ -21,6 +21,6 @@ def run(conn: sqlite3.Connection):
         conn.commit()
     except sqlite3.OperationalError as e:
         if "already exists" in str(e).lower():
-            pass  # index already present — idempotent
+            pass  # index already present, so this is idempotent
         else:
             raise

@@ -3,7 +3,7 @@ from recall.db import add_token, new_id
 from recall.auth import ROLE_PERMISSIONS
 from recall.config import DEFAULT_TOKEN_ROLE
 
-# owner cannot be granted via API — only the env token holds owner rights
+# owner cannot be granted via the API; only the env token holds owner rights
 GRANTABLE_ROLES = set(ROLE_PERMISSIONS.keys()) - {'owner'}
 
 

@@ -122,7 +122,7 @@ async def _fts_search_pg(conn, query_text: str, project: str, limit: int,
     degraded = False
     reason = ''
 
-    # Level 1 — tsvector FTS MATCH
+    # Level 1: tsvector FTS MATCH
     try:
         if memory_type:
             rows = await conn.fetch("""
@@ -164,7 +164,7 @@ async def _fts_search_pg(conn, query_text: str, project: str, limit: int,
     except Exception as e:
         logger.warning(f'FTS MATCH failed: {e}')
 
-    # Level 2 — ILIKE fallback
+    # Level 2: ILIKE fallback
     if not rows:
         try:
             if memory_type:
@@ -237,7 +237,7 @@ async def search_memories_pg(pool: 'asyncpg.Pool', query_text: str,
         if vec is None:
             return await _fts_search_pg(conn, query_text, project, limit, memory_type=memory_type)
 
-        # Vector search — top K candidates
+        # Vector search: top K candidates
         try:
             if memory_type:
                 vec_rows = await conn.fetch("""

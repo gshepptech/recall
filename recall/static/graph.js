@@ -19,7 +19,7 @@ function graphSize() {
   };
 }
 
-// Node visual weight — decisions/prompts/requirements should dominate over
+// Node visual weight: decisions/prompts/requirements should dominate over
 // the sea of auto-logged conversation entries.
 const TYPE_WEIGHT = {
   decision:     1.6,
@@ -194,7 +194,7 @@ function drawGraph() {
   const dpr = window.devicePixelRatio || 1;
   const W = canvas.offsetWidth, H = canvas.offsetHeight;
 
-  // Keep backing store in sync with CSS size — reset transform each frame
+  // Keep backing store in sync with CSS size; reset transform each frame
   if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
     canvas.width  = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
@@ -232,8 +232,8 @@ function drawGraph() {
     // mid-weight; tag/module/temporal stay subtle.
     let base;
     switch (e.type) {
-      case 'wiki':      base = [127,119,221]; break;  // bold purple — explicit [[link]]
-      case 'reference': base = [168,156,247]; break;  // lilac — implicit mention
+      case 'wiki':      base = [127,119,221]; break;  // bold purple: explicit [[link]]
+      case 'reference': base = [168,156,247]; break;  // lilac: implicit mention
       case 'module':    base = [83,177,183];  break;  // teal
       case 'tag':       base = [186,117,23];  break;  // amber
       case 'temporal':  base = [100,104,130]; break;  // grey-blue
@@ -289,7 +289,7 @@ function drawGraph() {
       ctx.stroke();
     }
 
-    // Labels — only for important types unless zoomed in
+    // Labels only for important types unless zoomed in
     const alwaysLabel = n.memory_type !== 'conversation' && typeWeight(n.memory_type) >= 1.25;
     if ((showLabels || isHov || isSel) && (alwaysLabel || showLabels || isHov || isSel)) {
       ctx.globalAlpha = dim ? 0.2 : (isSel || isHov ? 1.0 : alwaysLabel ? 0.85 : 0.7);
@@ -361,7 +361,7 @@ function nodeAtPoint(wx, wy) {
   return null;
 }
 
-// Small hover tooltip — just title + type, follows cursor
+// Small hover tooltip: just title + type, follows cursor
 function showHoverTip(n, cx, cy) {
   const el = document.getElementById('graph-tip');
   if (!n) { el.classList.remove('visible'); return; }
@@ -373,7 +373,7 @@ function showHoverTip(n, cx, cy) {
   el.classList.add('visible');
 }
 
-// Full click-open drawer — fetches content_md and renders markdown
+// Full click-open drawer: fetches content_md and renders markdown
 async function openNodeDetail(n) {
   const el = document.getElementById('graph-node-detail');
   if (!n) { el.classList.remove('visible'); S.gSel = null; return; }

@@ -151,19 +151,19 @@ async def _fts_query(db: 'aiosqlite.Connection', match_expr: str, project: str, 
 
 async def _fts_search(db: 'aiosqlite.Connection', query_text: str, project: str, limit: int,
                      memory_type: str = None) -> tuple:
-    """Full-text search fallback — AND → OR → LIKE.
+    """Full-text search fallback: AND → OR → LIKE.
     Returns (results, degraded, reason)."""
     rows = []
     degraded = False
     reason = ''
 
-    # Level 1 — FTS MATCH
+    # Level 1: FTS MATCH
     try:
         rows = await _fts_query(db, query_text, project, limit, memory_type=memory_type)
     except Exception as e:
         logger.warning(f'FTS MATCH failed: {e}')
 
-    # Level 2 — OR token MATCH
+    # Level 2: OR token MATCH
     if not rows:
         tokens = [t for t in re.sub(r'[^\w\s]', ' ', query_text).split() if t]
         if len(tokens) > 1:
@@ -175,7 +175,7 @@ async def _fts_search(db: 'aiosqlite.Connection', query_text: str, project: str,
             except Exception as e:
                 logger.warning(f'FTS OR fallback failed: {e}')
 
-    # Level 3 — LIKE
+    # Level 3: LIKE
     if not rows:
         try:
             # global → sees ALL memories; specific project → scoped to that project only

@@ -28,7 +28,7 @@ def run(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_token_hits_label_ts ON token_hits (label, ts DESC)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_token_hits_ts ON token_hits (ts DESC)")
 
-    # ADD COLUMN is not idempotent in SQLite — guard manually
+    # ADD COLUMN is not idempotent in SQLite, so guard manually
     cols = [r[1] for r in conn.execute("PRAGMA table_info(access_tokens)").fetchall()]
     if 'project_scope' not in cols:
         conn.execute("ALTER TABLE access_tokens ADD COLUMN project_scope TEXT")

@@ -67,7 +67,7 @@ const S = {
   gT: { x: 0, y: 0, s: 1 },
   gDrag: null, gPan: false, gPanS: null,
   gHover: null, gSel: null, gAF: null,
-  // Default-hide auto-logged diary/conversation entries — they dominate
+  // Default-hide auto-logged diary/conversation entries; they dominate
   // the graph and drown out signal memories (decisions/prompts/requirements).
   // User can click the legend to toggle them back on.
   gHiddenTypes: new Set(['conversation']),
@@ -203,7 +203,7 @@ function baseUrl() {
   return (S.url || DEFAULT_URL).replace(/\/webhook\/recall\/?$/, '');
 }
 
-// GET to a dedicated /api/ui/* endpoint — cleaner than POST through webhook
+// GET to a dedicated /api/ui/* endpoint, cleaner than POST through webhook
 async function apiGet(path, params = {}) {
   const qs = new URLSearchParams({ project: S.project, ...params }).toString();
   const url = baseUrl() + path + (qs ? '?' + qs : '');
@@ -214,7 +214,7 @@ async function apiGet(path, params = {}) {
     if (res.status === 401) { handle401(); return null; }
     if (res.status === 403) { await handle403(res); return null; }
     if (res.status >= 500) {
-      showBanner('Server error — check logs');
+      showBanner('Server error. Check the logs.');
       return null;
     }
     if (!res.ok) {
@@ -223,12 +223,12 @@ async function apiGet(path, params = {}) {
     }
     return await res.json();
   } catch (e) {
-    showBanner('Cannot reach ' + baseUrl() + ' — is the server running?');
+    showBanner('Cannot reach ' + baseUrl() + '. Is the server running?');
     return null;
   }
 }
 
-// POST to /webhook/recall — still used for write operations and bootstrap
+// POST to /webhook/recall, still used for write operations and bootstrap
 async function apiPost(command, extra = {}) {
   const url = S.url || DEFAULT_URL;
   try {
@@ -243,7 +243,7 @@ async function apiPost(command, extra = {}) {
     if (res.status === 401) { handle401(); return null; }
     if (res.status === 403) { await handle403(res); return null; }
     if (res.status >= 500) {
-      showBanner('Server error — check docker logs recall');
+      showBanner('Server error. Check: docker logs recall');
       return null;
     }
     if (!res.ok) {
@@ -252,7 +252,7 @@ async function apiPost(command, extra = {}) {
     }
     return await res.json();
   } catch (e) {
-    showBanner('Cannot reach ' + url + ' — is the server running?');
+    showBanner('Cannot reach ' + url + '. Is the server running?');
     return null;
   }
 }
@@ -355,7 +355,7 @@ async function showWhoAreYou() {
           headers: { 'Authorization': 'Bearer ' + tok }
         });
         if (r.status === 401) {
-          errEl.textContent = 'Wrong token — try again';
+          errEl.textContent = 'Wrong token. Try again.';
           tokenInput.value = '';
           tokenInput.focus();
         } else if (r.ok) {

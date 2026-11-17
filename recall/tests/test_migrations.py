@@ -55,7 +55,7 @@ def test_idempotent_double_run():
     run_migrations(conn)
 
     count_before = conn.execute("SELECT COUNT(*) FROM schema_versions").fetchone()[0]
-    run_migrations(conn)  # second run — must be silent
+    run_migrations(conn)  # second run must be silent
     count_after = conn.execute("SELECT COUNT(*) FROM schema_versions").fetchone()[0]
 
     assert count_before == count_after, "Duplicate schema_versions rows added on second run"
